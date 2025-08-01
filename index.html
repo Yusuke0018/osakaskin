@@ -2081,20 +2081,15 @@
                     window.insuranceNewPatientChart.destroy();
                 }
                 window.insuranceNewPatientChart = new Chart(newPatientCtx, {
-                    type: 'line',
+                    type: 'bar',
                     data: {
                         labels: months,
                         datasets: [{
                             label: '新患数',
                             data: newPatientData,
+                            backgroundColor: 'rgba(236, 72, 153, 0.8)',
                             borderColor: 'rgb(236, 72, 153)',
-                            backgroundColor: 'rgba(236, 72, 153, 0.1)',
-                            tension: 0.1,
-                            pointRadius: 5,
-                            pointHoverRadius: 8,
-                            pointBackgroundColor: 'rgb(236, 72, 153)',
-                            pointBorderColor: '#fff',
-                            pointBorderWidth: 2
+                            borderWidth: 1
                         }]
                     },
                     options: {
