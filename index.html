@@ -734,11 +734,15 @@
             const data = [];
             
             topTreatments.forEach(([name, treatmentData]) => {
+                console.log('Processing treatment for pie chart:', name, treatmentData);
                 if (name && name !== 'undefined' && name.trim() !== '') {
                     labels.push(name);
                     data.push(rankingMode === 'amount' ? treatmentData.amount : treatmentData.count);
                 }
             });
+            
+            console.log('Pie chart labels:', labels);
+            console.log('Pie chart data:', data);
             
             if (otherTreatments.length > 0) {
                 const otherValue = otherTreatments.reduce((sum, [, data]) => {
@@ -790,22 +794,30 @@
                                     size: 12
                                 },
                                 generateLabels: function(chart) {
-                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
-                                    const labels = original.call(this, chart);
+                                    const data = chart.data;
+                                    if (!data.labels || !data.datasets || !data.datasets[0]) {
+                                        return [];
+                                    }
                                     
-                                    labels.forEach((label, index) => {
-                                        const value = chart.data.datasets[0].data[index];
-                                        const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    return data.labels.map((label, index) => {
+                                        const value = data.datasets[0].data[index];
+                                        const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
                                         const percentage = Math.round((value / total) * 100);
                                         
+                                        let text = label || 'unknown';
                                         if (rankingMode === 'amount') {
-                                            label.text = `${label.text}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                            text = `${text}: ¥${value.toLocaleString()} (${percentage}%)`;
                                         } else {
-                                            label.text = `${label.text}: ${value}件 (${percentage}%)`;
+                                            text = `${text}: ${value}件 (${percentage}%)`;
                                         }
+                                        
+                                        return {
+                                            text: text,
+                                            fillStyle: data.datasets[0].backgroundColor[index],
+                                            hidden: false,
+                                            index: index
+                                        };
                                     });
-                                    
-                                    return labels;
                                 }
                             }
                         },
