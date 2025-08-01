@@ -22,6 +22,21 @@
         .rank-3 { background-color: #fed7aa; }
         .treatment-name { cursor: pointer; }
         .treatment-name:hover { color: #2563eb; text-decoration: underline; }
+        
+        /* 月選択セレクタのスタイル改善 */
+        #monthSelector {
+            font-size: 1.125rem;
+            font-weight: 500;
+            background-color: #f3f4f6;
+        }
+        #monthSelector:not(:placeholder-shown) {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+        }
+        select option {
+            padding: 0.5rem;
+            font-size: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -32,11 +47,11 @@
                 <h1 class="text-2xl font-bold text-gray-800">売上分析ダッシュボード</h1>
                 <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <!-- 月選択 -->
-                    <select id="monthSelector" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select id="monthSelector" class="px-6 py-3 text-lg font-medium border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[200px]">
                         <option value="">月を選択</option>
                     </select>
                     <!-- CSVアップロード -->
-                    <label class="px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition text-center">
+                    <label class="px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition text-center font-medium">
                         CSVアップロード
                         <input type="file" id="csvFile" accept=".csv" class="hidden">
                     </label>
@@ -81,15 +96,15 @@
                             <option value="all">全期間</option>
                             <option value="custom">期間を指定</option>
                         </select>
-                        <div id="customPeriod" class="hidden flex gap-2">
-                            <select id="startMonth" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <div id="customPeriod" class="hidden flex flex-wrap gap-2 mt-2">
+                            <select id="startMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
                                 <option value="">開始月</option>
                             </select>
-                            <span class="self-center">〜</span>
-                            <select id="endMonth" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <span class="self-center font-medium text-lg">〜</span>
+                            <select id="endMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
                                 <option value="">終了月</option>
                             </select>
-                            <button onclick="applyCustomPeriod()" class="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">適用</button>
+                            <button onclick="applyCustomPeriod()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">適用</button>
                         </div>
                     </div>
                 </div>
