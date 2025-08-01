@@ -603,10 +603,12 @@
         // CSVデータ処理
         function processCSVData(data, filename) {
             console.log('Processing CSV data...');
+            console.log('Original filename:', filename);
             
             // ファイルタイプの判定
             const isInsurance = filename.includes('保険') && !filename.includes('データ検索');
             const isDiseaseData = filename.includes('データ検索・抽出');
+            console.log('Is disease data:', isDiseaseData);
             
             // ファイル名から年月を抽出
             let yearMonth = null;
@@ -615,7 +617,26 @@
             if (isDiseaseData) {
                 // 傷病名データの場合: データ検索・抽出_2025:06.csv 形式
                 console.log('傷病名データファイル名:', filename);
-                const diseaseMatch = filename.match(/(\d{4})[:：](\d{2})/);
+                
+                // ファイル名の文字コードをデバッグ
+                for (let i = 0; i < filename.length; i++) {
+                    const char = filename.charAt(i);
+                    const code = filename.charCodeAt(i);
+                    if (char === ':' || char === '：' || code === 58 || code === 65306) {
+                        console.log(`位置 ${i}: 文字 '${char}', コード: ${code}`);
+                    }
+                }
+                
+                // 複数のパターンを試す
+                let diseaseMatch = filename.match(/(\d{4})[:：](\d{2})/);
+                if (!diseaseMatch) {
+                    // ファイル名に含まれる可能性のある特殊文字に対応
+                    diseaseMatch = filename.match(/(\d{4})[:\uff1a](\d{2})/); // \uff1a は全角コロン
+                }
+                if (!diseaseMatch) {
+                    // より柔軟なパターン
+                    diseaseMatch = filename.match(/(\d{4}).(\d{2})/); // 任意の1文字
+                }
                 console.log('傷病名データマッチ結果:', diseaseMatch);
                 if (diseaseMatch) {
                     yearMonth = diseaseMatch[1] + diseaseMatch[2];
