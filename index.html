@@ -108,6 +108,16 @@
         </div>
     </div>
 
+    <!-- デバッグパネル -->
+    <div class="fixed bottom-4 right-4">
+        <button onclick="clearAllData()" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
+            データクリア
+        </button>
+        <button onclick="showDebugInfo()" class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 ml-2">
+            デバッグ情報
+        </button>
+    </div>
+
     <script>
         // グローバル変数
         let salesData = {};
@@ -153,6 +163,8 @@
 
         // CSVデータ処理
         function processCSVData(data, filename) {
+            console.log('Processing CSV data...');
+            
             // ファイル名から年月を抽出 (例: 科目別売上_20250701-20250731.csv)
             const monthMatch = filename.match(/(\d{6})\d{2}/);
             if (!monthMatch) {
@@ -185,49 +197,63 @@
             let inTreatmentSection = false;
             let inProductSection = false;
             
-            for (let i = 3; i < data.length; i++) {
+            // CSVを解析してセクションと項目を特定
+            for (let i = 0; i < data.length; i++) {
                 const row = data[i];
                 if (!row || row.length < 5) continue;
                 
+                // 最初のカラムをチェックしてセクションを判定
+                const firstCol = row[0] ? row[0].trim() : '';
                 const itemName = row[1] ? row[1].trim() : '';
-                const amountStr = row[2] ? row[2].replace(/,/g, '') : '0';
-                const countStr = row[3] ? row[3].replace(/,/g, '') : '0';
+                const amountStr = row[2] ? row[2].replace(/[,，]/g, '') : '0';
+                const countStr = row[3] ? row[3].replace(/[,，]/g, '') : '0';
                 
-                // セクション判定
-                if (itemName === '施術合計') {
-                    monthData.totals.treatment.amount = parseInt(amountStr) || 0;
-                    monthData.totals.treatment.count = parseInt(countStr) || 0;
-                    continue;
-                }
-                if (itemName === '物品合計') {
-                    monthData.totals.product.amount = parseInt(amountStr) || 0;
-                    monthData.totals.product.count = parseInt(countStr) || 0;
-                    continue;
-                }
-                if (itemName === '総合計') {
-                    monthData.totals.grand.amount = parseInt(amountStr) || 0;
-                    monthData.totals.grand.count = parseInt(countStr) || 0;
-                    continue;
-                }
-                if (row[0] && row[0].includes('施術')) {
+                // セクション判定（空白行に"施術"または"物品"が含まれる行）
+                if (firstCol.includes('施術') && itemName === '') {
                     inTreatmentSection = true;
                     inProductSection = false;
+                    console.log('Entering treatment section');
                     continue;
                 }
-                if (row[0] && row[0].includes('物品')) {
+                if (firstCol.includes('物品') && itemName === '') {
                     inTreatmentSection = false;
                     inProductSection = true;
+                    console.log('Entering product section');
                     continue;
                 }
                 
-                // データ抽出
-                if (itemName && !excludeItems.includes(itemName)) {
+                // 合計行の処理
+                if (firstCol === '' && itemName === '施術合計') {
+                    monthData.totals.treatment.amount = parseInt(amountStr) || 0;
+                    monthData.totals.treatment.count = parseInt(countStr) || 0;
+                    console.log('Treatment total:', monthData.totals.treatment);
+                    continue;
+                }
+                if (firstCol === '' && itemName === '物品合計') {
+                    monthData.totals.product.amount = parseInt(amountStr) || 0;
+                    monthData.totals.product.count = parseInt(countStr) || 0;
+                    console.log('Product total:', monthData.totals.product);
+                    continue;
+                }
+                if (firstCol === '' && itemName === '総合計') {
+                    monthData.totals.grand.amount = parseInt(amountStr) || 0;
+                    monthData.totals.grand.count = parseInt(countStr) || 0;
+                    console.log('Grand total:', monthData.totals.grand);
+                    continue;
+                }
+                
+                // データ行の処理（インデントまたは空白で始まる行）
+                if ((firstCol === '' || firstCol.match(/^\s+/)) && itemName && !excludeItems.includes(itemName)) {
                     const amount = parseInt(amountStr) || 0;
                     const count = parseInt(countStr) || 0;
-                    const avgPrice = parseInt(row[4] ? row[4].replace(/,/g, '') : '0') || 0;
+                    const avgPrice = parseInt(row[4] ? row[4].replace(/[,，]/g, '') : '0') || 0;
                     
                     if (inTreatmentSection && amount > 0) {
-                        monthData.treatments[itemName] = { amount, count, avgPrice };
+                        // オンライン診療のような子項目は除外（インデントが深い項目）
+                        if (!itemName.match(/^[\s　]+【.*】/) && !itemName.match(/^[\s　]{2,}/)) {
+                            monthData.treatments[itemName] = { amount, count, avgPrice };
+                            console.log('Added treatment:', itemName, { amount, count, avgPrice });
+                        }
                     } else if (inProductSection && amount > 0) {
                         if (itemName === '外用') {
                             monthData.products.external = { amount, count };
@@ -239,6 +265,8 @@
                     }
                 }
             }
+            
+            console.log('Processed data:', monthData);
             
             // データ保存
             salesData[formattedMonth] = monthData;
@@ -435,6 +463,31 @@
             if (currentMonth && salesData[currentMonth]) {
                 displayTreatmentRanking(salesData[currentMonth].treatments);
             }
+        }
+
+        // データクリア
+        function clearAllData() {
+            if (confirm('すべてのデータを削除しますか？')) {
+                localStorage.removeItem('salesData');
+                salesData = {};
+                currentMonth = '';
+                updateMonthSelector();
+                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+                alert('データをクリアしました');
+            }
+        }
+
+        // デバッグ情報表示
+        function showDebugInfo() {
+            console.log('Current salesData:', salesData);
+            console.log('Current month:', currentMonth);
+            if (currentMonth && salesData[currentMonth]) {
+                console.log('Current month data:', salesData[currentMonth]);
+                console.log('Treatments count:', Object.keys(salesData[currentMonth].treatments).length);
+                console.log('Treatments:', salesData[currentMonth].treatments);
+            }
+            alert('デバッグ情報をコンソールに出力しました（F12キーで開発者ツールを開いて確認）');
         }
     </script>
 </body>
