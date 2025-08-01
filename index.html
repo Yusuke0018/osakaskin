@@ -357,15 +357,28 @@
         function processCSVData(data, filename) {
             console.log('Processing CSV data...');
             
-            // ファイル名から年月を抽出 (例: 科目別売上_20250701-20250731.csv)
-            const monthMatch = filename.match(/(\d{6})\d{2}/);
-            if (!monthMatch) {
+            // ファイル名から年月を抽出 (例: 女性科目別売上_202506-202506.csv または 科目別売上_20250701-20250731.csv)
+            let yearMonth = null;
+            let formattedMonth = null;
+            
+            // パターン1: 202506-202506 形式
+            const monthMatch1 = filename.match(/(\d{6})-\d{6}/);
+            if (monthMatch1) {
+                yearMonth = monthMatch1[1];
+            } else {
+                // パターン2: 20250701-20250731 形式
+                const monthMatch2 = filename.match(/(\d{6})\d{2}/);
+                if (monthMatch2) {
+                    yearMonth = monthMatch2[1];
+                }
+            }
+            
+            if (!yearMonth) {
                 alert('ファイル名から年月を特定できませんでした');
                 return;
             }
             
-            const yearMonth = monthMatch[1]; // 202507
-            const formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
+            formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
             
             // ファイル名から性別を判定
             let gender = null;
@@ -389,9 +402,10 @@
                     grand: { amount: 0, count: 0 }
                 },
                 gender: {
-                    male: { amount: 0, count: 0 },
-                    female: { amount: 0, count: 0 }
-                }
+                    male: { amount: 0, count: 0, treatments: {}, products: {} },
+                    female: { amount: 0, count: 0, treatments: {}, products: {} }
+                },
+                hasBothGenders: false  // 男女両方のデータがあるかのフラグ
             };
 
             // 削除対象項目（スペースも含めて完全一致でチェック）
@@ -495,7 +509,12 @@
                         console.log(`Row ${i}: Checking treatment - col0:'${col0}', sub:${isSubCategory}, parent:${isParentCategory}`);
                         
                         if (!hasIndent && !isSubCategory && !isParentCategory && amount > 0) {
-                            monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
+                            // 性別データがある場合は性別ごとに保存
+                            if (gender) {
+                                monthData.gender[gender].treatments[itemNameTrimmed] = { amount, count, avgPrice };
+                            } else {
+                                monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
+                            }
                             foundTreatmentData = true;
                             console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
                         } else {
@@ -511,15 +530,27 @@
                         console.log(`Row ${i}: In product section - checking:`, itemNameTrimmed);
                         
                         if (itemNameTrimmed === '外用') {
-                            monthData.products.external = { amount, count };
+                            if (gender) {
+                                monthData.gender[gender].products.external = { amount, count };
+                            } else {
+                                monthData.products.external = { amount, count };
+                            }
                             foundProductData = true;
                             console.log(`Row ${i}: Added external medicine:`, { amount, count });
                         } else if (itemNameTrimmed === '内服') {
-                            monthData.products.internal = { amount, count };
+                            if (gender) {
+                                monthData.gender[gender].products.internal = { amount, count };
+                            } else {
+                                monthData.products.internal = { amount, count };
+                            }
                             foundProductData = true;
                             console.log(`Row ${i}: Added internal medicine:`, { amount, count });
                         } else if (itemNameTrimmed === '化粧品') {
-                            monthData.products.cosmetics = { amount, count };
+                            if (gender) {
+                                monthData.gender[gender].products.cosmetics = { amount, count };
+                            } else {
+                                monthData.products.cosmetics = { amount, count };
+                            }
                             foundProductData = true;
                             console.log(`Row ${i}: Added cosmetics:`, { amount, count });
                         }
@@ -536,6 +567,47 @@
                 monthData.gender[gender].amount = monthData.totals.grand.amount;
                 monthData.gender[gender].count = monthData.totals.grand.count;
                 console.log(`Updated ${gender} data:`, monthData.gender[gender]);
+                
+                // 男女両方のデータがあるかチェック
+                if (monthData.gender.male.count > 0 && monthData.gender.female.count > 0) {
+                    monthData.hasBothGenders = true;
+                    
+                    // 全体の施術・物品データを統合
+                    monthData.treatments = {};
+                    monthData.products = {
+                        external: { amount: 0, count: 0 },
+                        internal: { amount: 0, count: 0 },
+                        cosmetics: { amount: 0, count: 0 }
+                    };
+                    
+                    // 男女の施術データを統合
+                    ['male', 'female'].forEach(g => {
+                        Object.entries(monthData.gender[g].treatments || {}).forEach(([name, data]) => {
+                            if (!monthData.treatments[name]) {
+                                monthData.treatments[name] = { amount: 0, count: 0, avgPrice: 0 };
+                            }
+                            monthData.treatments[name].amount += data.amount;
+                            monthData.treatments[name].count += data.count;
+                            monthData.treatments[name].avgPrice = Math.round(monthData.treatments[name].amount / monthData.treatments[name].count);
+                        });
+                        
+                        // 物品データを統合
+                        ['external', 'internal', 'cosmetics'].forEach(type => {
+                            if (monthData.gender[g].products[type]) {
+                                monthData.products[type].amount += monthData.gender[g].products[type].amount;
+                                monthData.products[type].count += monthData.gender[g].products[type].count;
+                            }
+                        });
+                    });
+                    
+                    // 合計を再計算
+                    monthData.totals.treatment.amount = monthData.gender.male.amount + monthData.gender.female.amount;
+                    monthData.totals.treatment.count = monthData.gender.male.count + monthData.gender.female.count;
+                    monthData.totals.product.amount = monthData.products.external.amount + monthData.products.internal.amount + monthData.products.cosmetics.amount;
+                    monthData.totals.product.count = monthData.products.external.count + monthData.products.internal.count + monthData.products.cosmetics.count;
+                    monthData.totals.grand.amount = monthData.totals.treatment.amount;
+                    monthData.totals.grand.count = monthData.totals.treatment.count;
+                }
             }
             
             // データ保存
@@ -550,7 +622,11 @@
             updateChart();
             
             const genderText = gender === 'male' ? '男性' : gender === 'female' ? '女性' : '';
-            alert(`${formattedMonth}の${genderText}データを読み込みました`);
+            if (monthData.hasBothGenders) {
+                alert(`${formattedMonth}の${genderText}データを読み込みました。\n男女両方のデータが揃いました。`);
+            } else {
+                alert(`${formattedMonth}の${genderText}データを読み込みました`);
+            }
         }
 
         // 月選択セレクタの更新
