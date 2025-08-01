@@ -497,25 +497,18 @@
                 labels: months,
                 datasets: [
                     {
-                        label: '総売上',
-                        data: months.map(month => salesData[month].totals.grand.amount),
-                        borderColor: 'rgb(59, 130, 246)',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        tension: 0.1
-                    },
-                    {
                         label: '施術売上',
                         data: months.map(month => salesData[month].totals.treatment.amount),
-                        borderColor: 'rgb(16, 185, 129)',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        tension: 0.1
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
                     },
                     {
                         label: '物品売上',
                         data: months.map(month => salesData[month].totals.product.amount),
+                        backgroundColor: 'rgba(251, 146, 60, 0.8)',
                         borderColor: 'rgb(251, 146, 60)',
-                        backgroundColor: 'rgba(251, 146, 60, 0.1)',
-                        tension: 0.1
+                        borderWidth: 1
                     }
                 ]
             };
@@ -525,7 +518,7 @@
             }
 
             salesChart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: chartData,
                 options: {
                     responsive: true,
@@ -536,10 +529,35 @@
                         },
                         title: {
                             display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += '¥' + context.parsed.y.toLocaleString();
+                                    return label;
+                                },
+                                afterLabel: function(context) {
+                                    const monthData = salesData[context.label];
+                                    if (monthData) {
+                                        const total = monthData.totals.grand.amount;
+                                        const percentage = Math.round((context.parsed.y / total) * 100);
+                                        return `総売上の${percentage}%`;
+                                    }
+                                    return '';
+                                }
+                            }
                         }
                     },
                     scales: {
+                        x: {
+                            stacked: true
+                        },
                         y: {
+                            stacked: true,
                             beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
