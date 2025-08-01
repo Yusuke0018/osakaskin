@@ -577,8 +577,11 @@
             const file = event.target.files[0];
             if (!file) return;
 
+            console.log('Uploaded file name:', file.name);
+            
             // 保険ファイルまたは傷病名データの場合は、Shift-JISエンコーディングで読み込む
-            if (file.name.includes('保険') || file.name.includes('データ検索・抽出')) {
+            if (file.name.includes('保険') || file.name.includes('データ検索') || file.name.includes('抽出')) {
+                console.log('Processing as Shift-JIS file');
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const text = e.target.result;
