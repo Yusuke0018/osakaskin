@@ -269,9 +269,15 @@
                 
                 // データ行の処理
                 // 列1に項目名がある行がデータ行
-                if (col1 && col1.length > 0 && col1 !== '管理名称') {
+                if (col1 && col1.length > 0 && col1 !== '管理名称' && col1 !== '金額') {
                     // 削除対象項目をチェック（前後のスペースを除去して比較）
                     const itemNameTrimmed = col1.trim();
+                    
+                    // デバッグ：すべてのデータ行を表示
+                    if (inTreatmentSection || inProductSection) {
+                        console.log(`Row ${i}: Data row - col0:'${col0}', col1:'${col1}', col2:'${col2}', col3:'${col3}'`);
+                    }
+                    
                     if (excludeItems.includes(itemNameTrimmed)) {
                         console.log(`Row ${i}: Excluded item:`, col1);
                         continue;
@@ -282,24 +288,32 @@
                     const avgPrice = parseInt(col4) || 0;
                     
                     // 施術項目の処理
-                    if (inTreatmentSection && amount > 0) {
-                        // 列0の先頭のスペースを確認（4文字以上は除外）
-                        const leadingSpaces = col0.match(/^(\s*)/)[1].length;
-                        const hasDeepIndent = leadingSpaces >= 4;
-                        const isSubCategory = col1.match(/^【/);
+                    if (inTreatmentSection) {
+                        console.log(`Row ${i}: In treatment section - amount:${amount}, count:${count}`);
                         
-                        console.log(`Row ${i}: Checking treatment - col0:'${col0}', spaces:${leadingSpaces}, col1:'${col1}'`);
-                        
-                        if (!hasDeepIndent && !isSubCategory) {
-                            monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
-                            foundTreatmentData = true;
-                            console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
+                        if (amount > 0) {
+                            // 列0の先頭のスペースを確認
+                            const leadingSpaces = col0.match(/^(\s*)/)[1].length;
+                            const hasDeepIndent = leadingSpaces >= 6;  // 6文字以上のインデントは子項目
+                            const isSubCategory = col1.match(/^【/);
+                            
+                            console.log(`Row ${i}: Checking treatment - col0:'${col0}', spaces:${leadingSpaces}, col1:'${col1}', indent:${hasDeepIndent}, sub:${isSubCategory}`);
+                            
+                            if (!hasDeepIndent && !isSubCategory) {
+                                monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
+                                foundTreatmentData = true;
+                                console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
+                            } else {
+                                console.log(`Row ${i}: ✗ Skipped (indent:${hasDeepIndent}, sub:${isSubCategory}):`, col1);
+                            }
                         } else {
-                            console.log(`Row ${i}: ✗ Skipped (indent:${hasDeepIndent}, sub:${isSubCategory}):`, col1);
+                            console.log(`Row ${i}: No amount for:`, col1);
                         }
                     }
                     // 物品項目の処理
                     else if (inProductSection) {
+                        console.log(`Row ${i}: In product section - checking:`, itemNameTrimmed);
+                        
                         if (itemNameTrimmed === '外用') {
                             monthData.products.external = { amount, count };
                             foundProductData = true;
