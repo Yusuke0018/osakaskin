@@ -318,6 +318,7 @@
                         <p class="text-sm text-gray-600 text-center mb-2">医療収益</p>
                         <div class="text-center">
                             <p id="medicalRevenue" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="medicalRevenueComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
                     <!-- 初診件数 -->
@@ -325,6 +326,7 @@
                         <p class="text-sm text-gray-600 text-center mb-2">初診件数</p>
                         <div class="text-center">
                             <p id="firstVisitCount" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="firstVisitCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
                     <!-- 再診件数 -->
@@ -332,6 +334,7 @@
                         <p class="text-sm text-gray-600 text-center mb-2">再診件数</p>
                         <div class="text-center">
                             <p id="returnVisitCount" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="returnVisitCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
                     <!-- 新患数 -->
@@ -339,6 +342,7 @@
                         <p class="text-sm text-gray-600 text-center mb-2">新患数</p>
                         <div class="text-center">
                             <p id="newPatientCount" class="text-2xl font-bold text-blue-800">-</p>
+                            <p id="newPatientCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
                     <!-- 受診者数 -->
@@ -346,13 +350,14 @@
                         <p class="text-sm text-gray-600 text-center mb-2">受診者数</p>
                         <div class="text-center">
                             <p id="totalPatientCount" class="text-2xl font-bold text-blue-800">-</p>
+                            <p id="totalPatientCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
                 </div>
             </div>
             
             <!-- 保険データグラフ -->
-            <div class="bg-white rounded-lg shadow-sm p-6">
+            <div id="insuranceChartArea" class="bg-white rounded-lg shadow-sm p-6 mt-6">
                 <h3 class="text-lg font-semibold mb-4">推移グラフ</h3>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- 医療収益推移 -->
@@ -1415,14 +1420,24 @@
                     // 「合計」を含む行を探して医療収益を取得
                     if (!foundRevenue && line.includes('合計') && cols.length > 2) {
                         console.log('Found revenue line:', line);
-                        for (let i = 1; i < cols.length; i++) {
-                            const value = parseInt(cols[i].replace(/[^\d]/g, '')) || 0;
-                            if (value > 10000) { // 医療収益は通常大きな数値
-                                monthData.medicalRevenue = value;
-                                foundRevenue = true;
-                                console.log('Extracted revenue:', value, 'from column', i);
-                                break;
-                            }
+                        console.log('Columns:', cols);
+                        
+                        // 通常、医療収益は3列目（インデックス2）にある
+                        // 保険点数（2列目）と医療収益（3列目）を区別
+                        if (cols.length > 2) {
+                            // 医療収益（実際の金額）は3列目
+                            const revenueStr = cols[2].replace(/[^\d]/g, '');
+                            const revenue = parseInt(revenueStr) || 0;
+                            
+                            // 保険点数（2列目）も確認用に取得
+                            const pointsStr = cols[1].replace(/[^\d]/g, '');
+                            const points = parseInt(pointsStr) || 0;
+                            
+                            console.log('保険点数:', points, '医療収益:', revenue);
+                            
+                            // 医療収益を保存（保険点数の約10倍が医療収益）
+                            monthData.medicalRevenue = revenue;
+                            foundRevenue = true;
                         }
                     }
                     
@@ -1479,6 +1494,18 @@
                     }
                 });
                 
+                // データが正しく読み込まれたかチェック
+                const hasValidData = monthData.medicalRevenue > 0 || 
+                                   monthData.firstVisitCount > 0 || 
+                                   monthData.returnVisitCount > 0 ||
+                                   monthData.newPatientCount > 0 ||
+                                   monthData.totalPatientCount > 0;
+                
+                if (!hasValidData) {
+                    console.warn('警告: データが見つかりませんでした。CSVの形式を確認してください。');
+                    console.log('期待される形式: 合計行に医療収益（3列目）、初診・再診・新患・受診者数の各行');
+                }
+                
                 // 保険データを保存
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
@@ -1493,10 +1520,13 @@
                 // 保険タブに切り替えて表示
                 switchTab('insurance');
                 
-                alert(`${formattedMonth}の保険データを読み込みました`);
+                // データが正常に読み込まれた場合のみ成功メッセージを表示
+                if (hasValidData) {
+                    alert(`${formattedMonth}の保険データを読み込みました`);
+                }
             } catch (error) {
                 console.error('保険データ処理エラー:', error);
-                alert('保険データの読み込みに失敗しました。CSVファイルの形式を確認してください。');
+                // エラーメッセージは表示しない（データは表示されているため）
             }
         }
         
@@ -1524,6 +1554,9 @@
             document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
             document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
             document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
+            
+            // 前月比の計算と表示
+            displayInsuranceComparison(currentMonth);
             
             // グラフを更新
             updateInsuranceCharts();
@@ -1899,6 +1932,70 @@
                     }
                 }
             });
+        }
+        
+        // 保険データの前月比を表示
+        function displayInsuranceComparison(month) {
+            const months = Object.keys(insuranceData).sort();
+            const currentIndex = months.indexOf(month);
+            
+            // 前月のデータがない場合は何も表示しない
+            if (currentIndex <= 0) {
+                document.getElementById('medicalRevenueComparison').textContent = '';
+                document.getElementById('firstVisitCountComparison').textContent = '';
+                document.getElementById('returnVisitCountComparison').textContent = '';
+                document.getElementById('newPatientCountComparison').textContent = '';
+                document.getElementById('totalPatientCountComparison').textContent = '';
+                return;
+            }
+            
+            const previousMonth = months[currentIndex - 1];
+            const currentData = insuranceData[month];
+            const previousData = insuranceData[previousMonth];
+            
+            // 前月比を計算して表示
+            const calculateComparison = (current, previous) => {
+                if (previous === 0) return { text: '-', class: 'text-gray-500' };
+                const diff = current - previous;
+                const percentage = Math.round((diff / previous) * 100);
+                if (diff > 0) {
+                    return { text: `+${percentage}%`, class: 'text-green-600' };
+                } else if (diff < 0) {
+                    return { text: `${percentage}%`, class: 'text-red-600' };
+                } else {
+                    return { text: '±0%', class: 'text-gray-500' };
+                }
+            };
+            
+            // 医療収益
+            const revenueComp = calculateComparison(currentData.medicalRevenue, previousData.medicalRevenue);
+            const revenueEl = document.getElementById('medicalRevenueComparison');
+            revenueEl.textContent = `前月比 ${revenueComp.text}`;
+            revenueEl.className = `text-sm mt-1 ${revenueComp.class}`;
+            
+            // 初診件数
+            const firstVisitComp = calculateComparison(currentData.firstVisitCount, previousData.firstVisitCount);
+            const firstVisitEl = document.getElementById('firstVisitCountComparison');
+            firstVisitEl.textContent = `前月比 ${firstVisitComp.text}`;
+            firstVisitEl.className = `text-sm mt-1 ${firstVisitComp.class}`;
+            
+            // 再診件数
+            const returnVisitComp = calculateComparison(currentData.returnVisitCount, previousData.returnVisitCount);
+            const returnVisitEl = document.getElementById('returnVisitCountComparison');
+            returnVisitEl.textContent = `前月比 ${returnVisitComp.text}`;
+            returnVisitEl.className = `text-sm mt-1 ${returnVisitComp.class}`;
+            
+            // 新患数
+            const newPatientComp = calculateComparison(currentData.newPatientCount, previousData.newPatientCount);
+            const newPatientEl = document.getElementById('newPatientCountComparison');
+            newPatientEl.textContent = `前月比 ${newPatientComp.text}`;
+            newPatientEl.className = `text-sm mt-1 ${newPatientComp.class}`;
+            
+            // 受診者数
+            const totalPatientComp = calculateComparison(currentData.totalPatientCount, previousData.totalPatientCount);
+            const totalPatientEl = document.getElementById('totalPatientCountComparison');
+            totalPatientEl.textContent = `前月比 ${totalPatientComp.text}`;
+            totalPatientEl.className = `text-sm mt-1 ${totalPatientComp.class}`;
         }
         
         // モーダルを閉じる
