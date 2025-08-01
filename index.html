@@ -214,76 +214,83 @@
                 const row = data[i];
                 if (!row || row.length < 5) continue;
                 
-                // 最初のカラムをチェックしてセクションを判定
-                const firstCol = row[0] ? row[0].trim() : '';
-                const itemName = row[1] ? row[1].trim() : '';
-                const amountStr = row[2] ? row[2].replace(/[,，]/g, '').replace(/"/g, '') : '0';
-                const countStr = row[3] ? row[3].replace(/[,，]/g, '').replace(/"/g, '') : '0';
+                // カラムの値を取得（BOMや余分な文字を除去）
+                const firstCol = (row[0] || '').replace(/^\uFEFF/, '').trim();
+                const itemName = (row[1] || '').replace(/^\uFEFF/, '').trim();
+                const amountStr = (row[2] || '0').replace(/[,，"]/g, '');
+                const countStr = (row[3] || '0').replace(/[,，"]/g, '');
                 
-                // セクション判定（空白行に"施術"または"物品"が含まれる行）
-                if (firstCol.includes('施術') && itemName === '') {
+                // デバッグ出力
+                if (i < 10) {
+                    console.log(`Row ${i}:`, {firstCol, itemName, amountStr, countStr});
+                }
+                
+                // セクション判定（"施術"または"物品"が最初のカラムに含まれる）
+                if (firstCol.includes('施術') && !firstCol.includes('合計')) {
                     inTreatmentSection = true;
                     inProductSection = false;
-                    console.log('Entering treatment section');
+                    console.log(`Row ${i}: Entering treatment section`);
                     continue;
                 }
-                if (firstCol.includes('物品') && itemName === '') {
+                if (firstCol.includes('物品') && !firstCol.includes('合計')) {
                     inTreatmentSection = false;
                     inProductSection = true;
-                    console.log('Entering product section');
+                    console.log(`Row ${i}: Entering product section`);
                     continue;
                 }
                 
                 // 合計行の処理
-                if (firstCol === '' && itemName === '施術合計') {
+                if (itemName === '施術合計') {
                     monthData.totals.treatment.amount = parseInt(amountStr) || 0;
                     monthData.totals.treatment.count = parseInt(countStr) || 0;
-                    console.log('Treatment total:', monthData.totals.treatment);
+                    console.log(`Row ${i}: Treatment total:`, monthData.totals.treatment);
                     continue;
                 }
-                if (firstCol === '' && itemName === '物品合計') {
+                if (itemName === '物品合計') {
                     monthData.totals.product.amount = parseInt(amountStr) || 0;
                     monthData.totals.product.count = parseInt(countStr) || 0;
-                    console.log('Product total:', monthData.totals.product);
+                    console.log(`Row ${i}: Product total:`, monthData.totals.product);
                     continue;
                 }
-                if (firstCol === '' && itemName === '総合計') {
+                if (itemName === '総合計') {
                     monthData.totals.grand.amount = parseInt(amountStr) || 0;
                     monthData.totals.grand.count = parseInt(countStr) || 0;
-                    console.log('Grand total:', monthData.totals.grand);
+                    console.log(`Row ${i}: Grand total:`, monthData.totals.grand);
                     continue;
                 }
                 
                 // データ行の処理
-                if (itemName && !itemName.match(/^[\s　]+/) && !excludeItems.includes(itemName)) {
+                if (itemName && itemName.length > 0 && !excludeItems.includes(itemName)) {
                     const amount = parseInt(amountStr) || 0;
                     const count = parseInt(countStr) || 0;
-                    const avgPriceStr = row[4] ? row[4].replace(/[,，]/g, '').replace(/"/g, '') : '0';
+                    const avgPriceStr = (row[4] || '0').replace(/[,，"]/g, '');
                     const avgPrice = parseInt(avgPriceStr) || 0;
                     
-                    // 施術項目の処理
-                    if (inTreatmentSection && amount > 0) {
-                        // サブカテゴリ（インデントされた項目）を除外
-                        if (!itemName.match(/^【.*】/) && !itemName.match(/^\s+/)) {
-                            monthData.treatments[itemName] = { amount, count, avgPrice };
+                    // 施術項目の処理（先頭の空白とサブカテゴリを除外）
+                    if (inTreatmentSection) {
+                        // インデントされた子項目（例：【自費】初診）を除外
+                        const trimmedName = itemName.replace(/^[\s　]+/, '');
+                        if (!trimmedName.match(/^【/) && !itemName.match(/^[\s　]{2,}/) && amount > 0) {
+                            monthData.treatments[trimmedName] = { amount, count, avgPrice };
                             foundTreatmentData = true;
-                            console.log('Added treatment:', itemName, { amount, count, avgPrice });
+                            console.log(`Row ${i}: Added treatment:`, trimmedName, { amount, count, avgPrice });
                         }
                     }
                     // 物品項目の処理
                     else if (inProductSection) {
-                        if (itemName === '外用') {
+                        const trimmedName = itemName.replace(/^[\s　]+/, '');
+                        if (trimmedName === '外用') {
                             monthData.products.external = { amount, count };
                             foundProductData = true;
-                            console.log('Added external medicine:', { amount, count });
-                        } else if (itemName === '内服') {
+                            console.log(`Row ${i}: Added external medicine:`, { amount, count });
+                        } else if (trimmedName === '内服') {
                             monthData.products.internal = { amount, count };
                             foundProductData = true;
-                            console.log('Added internal medicine:', { amount, count });
-                        } else if (itemName === '化粧品') {
+                            console.log(`Row ${i}: Added internal medicine:`, { amount, count });
+                        } else if (trimmedName === '化粧品') {
                             monthData.products.cosmetics = { amount, count };
                             foundProductData = true;
-                            console.log('Added cosmetics:', { amount, count });
+                            console.log(`Row ${i}: Added cosmetics:`, { amount, count });
                         }
                     }
                 }
@@ -349,6 +356,11 @@
             
             // 物品サマリー表示
             displayProductSummary(data.products);
+            
+            // グラフ更新（複数月のデータがある場合）
+            if (Object.keys(salesData).length > 0) {
+                updateChart();
+            }
         }
 
         // 総売上サマリー表示

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSVデータ解析テスト</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+    <h1>CSVデータ解析テスト</h1>
+    <input type="file" id="csvFile" accept=".csv">
+    <pre id="output"></pre>
+
+    <script>
+        document.getElementById('csvFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                encoding: 'UTF-8',
+                complete: function(results) {
+                    analyzeCSV(results.data);
+                }
+            });
+        });
+
+        function analyzeCSV(data) {
+            let output = "CSVデータ構造分析\n";
+            output += "=================\n\n";
+            
+            // 最初の10行を表示
+            output += "最初の10行:\n";
+            for (let i = 0; i < Math.min(10, data.length); i++) {
+                output += `行${i}: [${data[i].map((cell, idx) => `列${idx}:"${cell}"`).join(', ')}]\n`;
+            }
+            
+            output += "\n施術セクションの検索:\n";
+            let inTreatmentSection = false;
+            let inProductSection = false;
+            let treatmentItems = [];
+            let productItems = [];
+            
+            for (let i = 0; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length < 5) continue;
+                
+                const col0 = row[0] || '';
+                const col1 = row[1] || '';
+                const col2 = row[2] || '';
+                const col3 = row[3] || '';
+                const col4 = row[4] || '';
+                
+                // セクション判定
+                if (col0.includes('施術')) {
+                    output += `行${i}: 施術セクション開始\n`;
+                    inTreatmentSection = true;
+                    inProductSection = false;
+                }
+                if (col0.includes('物品')) {
+                    output += `行${i}: 物品セクション開始\n`;
+                    inTreatmentSection = false;
+                    inProductSection = true;
+                }
+                
+                // 合計行
+                if (col1 === '施術合計') {
+                    output += `行${i}: 施術合計 - 金額:${col2}, 件数:${col3}\n`;
+                }
+                if (col1 === '物品合計') {
+                    output += `行${i}: 物品合計 - 金額:${col2}, 件数:${col3}\n`;
+                }
+                if (col1 === '総合計') {
+                    output += `行${i}: 総合計 - 金額:${col2}, 件数:${col3}\n`;
+                }
+                
+                // データ項目
+                if (col1 && col1.trim() && !col1.match(/合計/)) {
+                    const amount = parseInt((col2 || '0').replace(/[,，"]/g, ''));
+                    const count = parseInt((col3 || '0').replace(/[,，"]/g, ''));
+                    
+                    if (inTreatmentSection && amount > 0) {
+                        if (!['診察料（自費）', '調整金額', '予約用'].includes(col1.trim())) {
+                            treatmentItems.push({
+                                name: col1.trim(),
+                                amount: amount,
+                                count: count,
+                                row: i
+                            });
+                        }
+                    }
+                    
+                    if (inProductSection) {
+                        if (['外用', '内服', '化粧品'].includes(col1.trim())) {
+                            productItems.push({
+                                name: col1.trim(),
+                                amount: amount,
+                                count: count,
+                                row: i
+                            });
+                        }
+                    }
+                }
+            }
+            
+            output += "\n\n抽出された施術項目:\n";
+            treatmentItems.forEach(item => {
+                output += `${item.name} - 金額:${item.amount}, 件数:${item.count} (行${item.row})\n`;
+            });
+            
+            output += "\n\n抽出された物品項目:\n";
+            productItems.forEach(item => {
+                output += `${item.name} - 金額:${item.amount}, 件数:${item.count} (行${item.row})\n`;
+            });
+            
+            document.getElementById('output').textContent = output;
+        }
+    </script>
+</body>
+</html>
