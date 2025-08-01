@@ -81,10 +81,33 @@
                     <div class="flex gap-2">
                         <button onclick="showRanking('amount')" id="amountBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">売上順</button>
                         <button onclick="showRanking('count')" id="countBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">件数順</button>
+                        <button onclick="toggleChartView()" id="chartBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">円グラフ</button>
                     </div>
                 </div>
                 <div id="treatmentRanking" class="overflow-x-auto">
                     <!-- ランキングテーブル -->
+                </div>
+                <div id="pieChartContainer" class="hidden" style="position: relative; height:400px;">
+                    <canvas id="treatmentPieChart"></canvas>
+                </div>
+            </div>
+
+            <!-- トレンド分析 -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">施術トレンド分析</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-lg font-medium text-green-700 mb-3">📈 成長中の施術 (TOP 5)</h3>
+                        <div id="growingTreatments" class="space-y-2">
+                            <!-- 成長中の施術リスト -->
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium text-red-700 mb-3">📉 減少中の施術 (TOP 5)</h3>
+                        <div id="decliningTreatments" class="space-y-2">
+                            <!-- 減少中の施術リスト -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -133,6 +156,8 @@
         let currentMonth = '';
         let rankingMode = 'amount';
         let salesChart = null;
+        let pieChart = null;
+        let showPieChart = false;
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
@@ -201,7 +226,7 @@
             };
 
             // 削除対象項目（スペースも含めて完全一致でチェック）
-            const excludeItems = ['診察料（自費）', '調整金額', '予約用'];
+            const excludeItems = ['診察料（自費）', '調整金額', '予約用', '調整金額(230)'];
             
             // データ解析
             let inTreatmentSection = false;
@@ -390,6 +415,9 @@
             // 物品サマリー表示
             displayProductSummary(data.products);
             
+            // トレンド分析表示
+            displayTrendAnalysis();
+            
             // グラフ更新（複数月のデータがある場合）
             if (Object.keys(salesData).length > 0) {
                 updateChart();
@@ -462,6 +490,7 @@
                             <th class="text-left py-2 px-1 w-12">順位</th>
                             <th class="text-left py-2 px-2">施術名</th>
                             <th class="text-right py-2 px-2">売上金額</th>
+                            <th class="text-right py-2 px-2">前月比</th>
                             <th class="text-right py-2 px-2">件数</th>
                             <th class="text-right py-2 px-2">平均単価</th>
                         </tr>
@@ -469,14 +498,33 @@
                     <tbody>
             `;
             
+            // 前月データ取得
+            const months = Object.keys(salesData).sort();
+            const currentIndex = months.indexOf(currentMonth);
+            const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : null;
+            const previousData = previousMonth ? salesData[previousMonth].treatments : null;
+            
             sortedTreatments.forEach((item, index) => {
                 const [name, data] = item;
                 const rankClass = index < 3 ? `rank-${index + 1}` : '';
+                
+                // 前月比計算
+                let changeDisplay = '<span class="text-gray-400">-</span>';
+                if (previousData && previousData[name]) {
+                    const prevAmount = previousData[name].amount;
+                    const change = data.amount - prevAmount;
+                    const changePercent = Math.round((change / prevAmount) * 100);
+                    const changeClass = change >= 0 ? 'comparison-positive' : 'comparison-negative';
+                    const sign = change >= 0 ? '+' : '';
+                    changeDisplay = `<span class="${changeClass}">${sign}${changePercent}%</span>`;
+                }
+                
                 html += `
                     <tr class="border-b ${rankClass} fade-in">
                         <td class="py-3 px-1">${index + 1}</td>
                         <td class="py-3 px-2">${name}</td>
                         <td class="text-right py-3 px-2 font-semibold">¥${data.amount.toLocaleString()}</td>
+                        <td class="text-right py-3 px-2">${changeDisplay}</td>
                         <td class="text-right py-3 px-2">${data.count.toLocaleString()}件</td>
                         <td class="text-right py-3 px-2">¥${data.avgPrice.toLocaleString()}</td>
                     </tr>
@@ -608,10 +656,12 @@
         // ランキング切り替え
         function showRanking(mode) {
             rankingMode = mode;
+            showPieChart = false;
             
             // ボタンスタイル切り替え
             const amountBtn = document.getElementById('amountBtn');
             const countBtn = document.getElementById('countBtn');
+            const chartBtn = document.getElementById('chartBtn');
             
             if (mode === 'amount') {
                 amountBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm';
@@ -620,11 +670,221 @@
                 amountBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm';
                 countBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm';
             }
+            chartBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm';
+            
+            // 表示切り替え
+            document.getElementById('treatmentRanking').classList.remove('hidden');
+            document.getElementById('pieChartContainer').classList.add('hidden');
             
             // ランキング再表示
             if (currentMonth && salesData[currentMonth]) {
                 displayTreatmentRanking(salesData[currentMonth].treatments);
             }
+        }
+        
+        // 円グラフ表示切り替え
+        function toggleChartView() {
+            showPieChart = !showPieChart;
+            const chartBtn = document.getElementById('chartBtn');
+            
+            if (showPieChart) {
+                chartBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm';
+                document.getElementById('treatmentRanking').classList.add('hidden');
+                document.getElementById('pieChartContainer').classList.remove('hidden');
+                displayPieChart();
+            } else {
+                chartBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm';
+                document.getElementById('treatmentRanking').classList.remove('hidden');
+                document.getElementById('pieChartContainer').classList.add('hidden');
+            }
+        }
+        
+        // トレンド分析表示
+        function displayTrendAnalysis() {
+            const months = Object.keys(salesData).sort();
+            const currentIndex = months.indexOf(currentMonth);
+            
+            // 少なくとも2ヶ月分のデータが必要
+            if (months.length < 2 || currentIndex < 1) {
+                document.getElementById('growingTreatments').innerHTML = '<p class="text-gray-500">データが不十分です</p>';
+                document.getElementById('decliningTreatments').innerHTML = '<p class="text-gray-500">データが不十分です</p>';
+                return;
+            }
+            
+            const currentData = salesData[currentMonth].treatments;
+            const previousMonth = months[currentIndex - 1];
+            const previousData = salesData[previousMonth].treatments;
+            
+            // 変化率を計算
+            const changes = [];
+            Object.keys(currentData).forEach(name => {
+                if (previousData[name]) {
+                    const currentAmount = currentData[name].amount;
+                    const previousAmount = previousData[name].amount;
+                    const change = currentAmount - previousAmount;
+                    const changePercent = (change / previousAmount) * 100;
+                    
+                    changes.push({
+                        name: name,
+                        currentAmount: currentAmount,
+                        previousAmount: previousAmount,
+                        change: change,
+                        changePercent: changePercent
+                    });
+                }
+            });
+            
+            // 新規施術（前月にない施術）
+            Object.keys(currentData).forEach(name => {
+                if (!previousData[name] && currentData[name].amount > 0) {
+                    changes.push({
+                        name: name,
+                        currentAmount: currentData[name].amount,
+                        previousAmount: 0,
+                        change: currentData[name].amount,
+                        changePercent: 100,
+                        isNew: true
+                    });
+                }
+            });
+            
+            // 成長率でソート
+            changes.sort((a, b) => b.changePercent - a.changePercent);
+            
+            // 成長中の施術（上位5件）
+            const growing = changes.filter(item => item.change > 0).slice(0, 5);
+            let growingHtml = '';
+            growing.forEach(item => {
+                const newBadge = item.isNew ? '<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded ml-2">NEW</span>' : '';
+                growingHtml += `
+                    <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <div class="flex items-center">
+                            <span class="font-medium">${item.name}</span>${newBadge}
+                        </div>
+                        <div class="text-right">
+                            <span class="text-green-700 font-bold">+${Math.round(item.changePercent)}%</span>
+                            <div class="text-sm text-gray-600">¥${item.currentAmount.toLocaleString()}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('growingTreatments').innerHTML = growingHtml || '<p class="text-gray-500">成長中の施術がありません</p>';
+            
+            // 減少中の施術（下位5件）
+            const declining = changes.filter(item => item.change < 0).slice(-5).reverse();
+            let decliningHtml = '';
+            declining.forEach(item => {
+                decliningHtml += `
+                    <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                        <span class="font-medium">${item.name}</span>
+                        <div class="text-right">
+                            <span class="text-red-700 font-bold">${Math.round(item.changePercent)}%</span>
+                            <div class="text-sm text-gray-600">¥${item.currentAmount.toLocaleString()}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('decliningTreatments').innerHTML = decliningHtml || '<p class="text-gray-500">減少中の施術がありません</p>';
+        }
+        
+        // 円グラフ表示
+        function displayPieChart() {
+            if (!currentMonth || !salesData[currentMonth]) return;
+            
+            const treatments = salesData[currentMonth].treatments;
+            const sortedTreatments = Object.entries(treatments).sort((a, b) => {
+                return rankingMode === 'amount' ? b[1].amount - a[1].amount : b[1].count - a[1].count;
+            });
+            
+            // 上位10件を取得、残りは「その他」にまとめる
+            const topTreatments = sortedTreatments.slice(0, 10);
+            const otherTreatments = sortedTreatments.slice(10);
+            
+            const labels = topTreatments.map(([name]) => name);
+            const data = topTreatments.map(([, data]) => rankingMode === 'amount' ? data.amount : data.count);
+            
+            if (otherTreatments.length > 0) {
+                const otherValue = otherTreatments.reduce((sum, [, data]) => {
+                    return sum + (rankingMode === 'amount' ? data.amount : data.count);
+                }, 0);
+                labels.push('その他');
+                data.push(otherValue);
+            }
+            
+            const ctx = document.getElementById('treatmentPieChart').getContext('2d');
+            
+            if (pieChart) {
+                pieChart.destroy();
+            }
+            
+            pieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(251, 146, 60, 0.8)',
+                            'rgba(34, 197, 94, 0.8)',
+                            'rgba(168, 85, 247, 0.8)',
+                            'rgba(236, 72, 153, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(6, 182, 212, 0.8)',
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(84, 56, 255, 0.8)',
+                            'rgba(52, 211, 153, 0.8)',
+                            'rgba(156, 163, 175, 0.8)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                generateLabels: function(chart) {
+                                    const original = Chart.defaults.plugins.legend.labels.generateLabels;
+                                    const labels = original.call(this, chart);
+                                    
+                                    labels.forEach((label, index) => {
+                                        const value = chart.data.datasets[0].data[index];
+                                        const total = chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        
+                                        if (rankingMode === 'amount') {
+                                            label.text = `${label.text}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                        } else {
+                                            label.text = `${label.text}: ${value}件 (${percentage}%)`;
+                                        }
+                                    });
+                                    
+                                    return labels;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    
+                                    if (rankingMode === 'amount') {
+                                        return `${label}: ¥${value.toLocaleString()} (${percentage}%)`;
+                                    } else {
+                                        return `${label}: ${value}件 (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // データクリア
@@ -639,6 +899,10 @@
                 if (salesChart) {
                     salesChart.destroy();
                     salesChart = null;
+                }
+                if (pieChart) {
+                    pieChart.destroy();
+                    pieChart = null;
                 }
                 alert('データをクリアしました');
             }
