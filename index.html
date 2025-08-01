@@ -605,10 +605,10 @@
             console.log('Processing CSV data...');
             console.log('Original filename:', filename);
             
-            // ファイルタイプの判定
+            // ファイルタイプの判定（ファイル名による判定）
             const isInsurance = filename.includes('保険') && !filename.includes('データ検索');
-            const isDiseaseData = filename.includes('データ検索・抽出');
-            console.log('Is disease data:', isDiseaseData);
+            const isDiseaseData = filename.includes('データ検索') || filename.includes('抽出');
+            console.log('File type - Insurance:', isInsurance, 'Disease:', isDiseaseData);
             
             // ファイル名から年月を抽出
             let yearMonth = null;
