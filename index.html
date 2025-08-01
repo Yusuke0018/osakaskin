@@ -20,6 +20,8 @@
         .rank-1 { background-color: #fef3c7; }
         .rank-2 { background-color: #e5e7eb; }
         .rank-3 { background-color: #fed7aa; }
+        .treatment-name { cursor: pointer; }
+        .treatment-name:hover { color: #2563eb; text-decoration: underline; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -92,6 +94,32 @@
                 </div>
             </div>
 
+            <!-- 施術詳細モーダル -->
+            <div id="treatmentDetailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+                <div class="flex items-center justify-center min-h-screen p-4">
+                    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+                        <div class="p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 id="modalTitle" class="text-xl font-semibold"></h2>
+                                <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div id="modalContent">
+                                <div style="position: relative; height:400px;">
+                                    <canvas id="treatmentDetailChart"></canvas>
+                                </div>
+                                <div id="treatmentDetailTable" class="mt-6">
+                                    <!-- 詳細テーブル -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 物品サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6">
                 <h2 class="text-xl font-semibold mb-4">物品売上</h2>
@@ -139,6 +167,7 @@
         let salesChart = null;
         let pieChart = null;
         let showPieChart = false;
+        let detailChart = null;
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
@@ -501,7 +530,7 @@
                 html += `
                     <tr class="border-b ${rankClass} fade-in">
                         <td class="py-3 px-1">${index + 1}</td>
-                        <td class="py-3 px-2">${name}</td>
+                        <td class="py-3 px-2"><span class="treatment-name" onclick="showTreatmentDetail('${name.replace(/'/g, "\\'")}')">${name}</span></td>
                         <td class="text-right py-3 px-2 font-semibold">¥${data.amount.toLocaleString()}</td>
                         <td class="text-right py-3 px-2">${changeDisplay}</td>
                         <td class="text-right py-3 px-2">${data.count.toLocaleString()}件</td>
@@ -808,6 +837,181 @@
             }
         }
 
+        // 施術詳細表示
+        function showTreatmentDetail(treatmentName) {
+            const modal = document.getElementById('treatmentDetailModal');
+            const modalTitle = document.getElementById('modalTitle');
+            
+            modalTitle.textContent = `${treatmentName}の売上推移`;
+            modal.classList.remove('hidden');
+            
+            // 過去12ヶ月分のデータを取得
+            const months = Object.keys(salesData).sort();
+            const last12Months = months.slice(-12);
+            
+            const monthlyData = [];
+            const amounts = [];
+            const counts = [];
+            
+            last12Months.forEach(month => {
+                const treatment = salesData[month].treatments[treatmentName];
+                monthlyData.push(month);
+                amounts.push(treatment ? treatment.amount : 0);
+                counts.push(treatment ? treatment.count : 0);
+            });
+            
+            // グラフ表示
+            const ctx = document.getElementById('treatmentDetailChart').getContext('2d');
+            
+            if (detailChart) {
+                detailChart.destroy();
+            }
+            
+            detailChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthlyData,
+                    datasets: [{
+                        label: '売上金額',
+                        data: amounts,
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1,
+                        yAxisID: 'y-amount'
+                    }, {
+                        label: '件数',
+                        data: counts,
+                        type: 'line',
+                        borderColor: 'rgb(251, 146, 60)',
+                        backgroundColor: 'rgba(251, 146, 60, 0.1)',
+                        yAxisID: 'y-count',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.dataset.yAxisID === 'y-amount') {
+                                        label += '¥' + context.parsed.y.toLocaleString();
+                                    } else {
+                                        label += context.parsed.y + '件';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        'y-amount': {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: '売上金額'
+                            }
+                        },
+                        'y-count': {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            title: {
+                                display: true,
+                                text: '件数'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 詳細テーブル作成
+            let tableHtml = `
+                <table class="w-full mt-4">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2">月</th>
+                            <th class="text-right py-2">売上金額</th>
+                            <th class="text-right py-2">件数</th>
+                            <th class="text-right py-2">平均単価</th>
+                            <th class="text-right py-2">前月比</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            last12Months.forEach((month, index) => {
+                const treatment = salesData[month].treatments[treatmentName];
+                if (treatment) {
+                    let changeDisplay = '<span class="text-gray-400">-</span>';
+                    if (index > 0) {
+                        const prevMonth = last12Months[index - 1];
+                        const prevTreatment = salesData[prevMonth].treatments[treatmentName];
+                        if (prevTreatment && prevTreatment.amount > 0) {
+                            const change = treatment.amount - prevTreatment.amount;
+                            const changePercent = Math.round((change / prevTreatment.amount) * 100);
+                            const changeClass = change >= 0 ? 'comparison-positive' : 'comparison-negative';
+                            const sign = change >= 0 ? '+' : '';
+                            changeDisplay = `<span class="${changeClass}">${sign}${changePercent}%</span>`;
+                        }
+                    }
+                    
+                    tableHtml += `
+                        <tr class="border-b">
+                            <td class="py-2">${month}</td>
+                            <td class="text-right py-2">¥${treatment.amount.toLocaleString()}</td>
+                            <td class="text-right py-2">${treatment.count}件</td>
+                            <td class="text-right py-2">¥${treatment.avgPrice.toLocaleString()}</td>
+                            <td class="text-right py-2">${changeDisplay}</td>
+                        </tr>
+                    `;
+                }
+            });
+            
+            tableHtml += '</tbody></table>';
+            document.getElementById('treatmentDetailTable').innerHTML = tableHtml;
+        }
+        
+        // モーダルを閉じる
+        function closeModal() {
+            document.getElementById('treatmentDetailModal').classList.add('hidden');
+            if (detailChart) {
+                detailChart.destroy();
+                detailChart = null;
+            }
+        }
+        
+        // モーダル外側クリックで閉じる
+        document.getElementById('treatmentDetailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+        
         // デバッグ情報表示
         function showDebugInfo() {
             console.log('Current salesData:', salesData);
