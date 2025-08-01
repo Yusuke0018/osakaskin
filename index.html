@@ -228,6 +228,12 @@
                                 <div style="position: relative; height:400px;">
                                     <canvas id="treatmentDetailChart"></canvas>
                                 </div>
+                                <div id="treatmentGenderChart" class="mt-6 hidden">
+                                    <h3 class="text-lg font-medium mb-3">男女比率</h3>
+                                    <div style="position: relative; height:250px;">
+                                        <canvas id="treatmentGenderRatioChart"></canvas>
+                                    </div>
+                                </div>
                                 <div id="treatmentDetailTable" class="mt-6">
                                     <!-- 詳細テーブル -->
                                 </div>
@@ -314,6 +320,7 @@
         let chartPeriod = '12'; // デフォルトは過去1年間
         let productChart = null;
         let genderChart = null; // 男女比率グラフ用
+        let treatmentGenderChart = null; // 施術詳細の男女比率グラフ用
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
@@ -754,6 +761,9 @@
                 return;
             }
             
+            const currentData = salesData[currentMonth];
+            const hasBothGenders = currentData && currentData.hasBothGenders;
+            
             const sortedTreatments = Object.entries(treatments).sort((a, b) => {
                 if (rankingMode === 'amount') {
                     return b[1].amount - a[1].amount;
@@ -772,6 +782,7 @@
                             <th class="text-right py-2 px-2">前月比</th>
                             <th class="text-right py-2 px-2">件数</th>
                             <th class="text-right py-2 px-2">平均単価</th>
+                            ${hasBothGenders ? '<th class="text-center py-2 px-2">男女比</th>' : ''}
                         </tr>
                     </thead>
                     <tbody>
@@ -798,6 +809,28 @@
                     changeDisplay = `<span class="${changeClass}">${sign}${changePercent}%</span>`;
                 }
                 
+                // 男女比の計算
+                let genderRatioDisplay = '';
+                if (hasBothGenders) {
+                    const maleCount = currentData.gender.male.treatments[name]?.count || 0;
+                    const femaleCount = currentData.gender.female.treatments[name]?.count || 0;
+                    const totalCount = maleCount + femaleCount;
+                    
+                    if (totalCount > 0) {
+                        const maleRatio = Math.round((maleCount / totalCount) * 100);
+                        const femaleRatio = Math.round((femaleCount / totalCount) * 100);
+                        genderRatioDisplay = `
+                            <div class="flex items-center justify-center gap-2 text-xs">
+                                <span class="text-blue-600 font-medium">男${maleRatio}%</span>
+                                <span class="text-gray-400">:</span>
+                                <span class="text-pink-600 font-medium">女${femaleRatio}%</span>
+                            </div>
+                        `;
+                    } else {
+                        genderRatioDisplay = '<span class="text-gray-400 text-xs">-</span>';
+                    }
+                }
+                
                 html += `
                     <tr class="border-b ${rankClass} fade-in">
                         <td class="py-3 px-1">${index + 1}</td>
@@ -806,6 +839,7 @@
                         <td class="text-right py-3 px-2">${changeDisplay}</td>
                         <td class="text-right py-3 px-2">${data.count.toLocaleString()}件</td>
                         <td class="text-right py-3 px-2">¥${data.avgPrice.toLocaleString()}</td>
+                        ${hasBothGenders ? `<td class="text-center py-3 px-2">${genderRatioDisplay}</td>` : ''}
                     </tr>
                 `;
             });
@@ -1353,6 +1387,91 @@
             
             tableHtml += '</tbody></table>';
             document.getElementById('treatmentDetailTable').innerHTML = tableHtml;
+            
+            // 男女比率グラフの表示（男女別データがある場合）
+            const currentData = salesData[currentMonth];
+            if (currentData && currentData.hasBothGenders) {
+                document.getElementById('treatmentGenderChart').classList.remove('hidden');
+                
+                const maleData = currentData.gender.male.treatments[treatmentName];
+                const femaleData = currentData.gender.female.treatments[treatmentName];
+                
+                if (maleData || femaleData) {
+                    const maleCount = maleData?.count || 0;
+                    const femaleCount = femaleData?.count || 0;
+                    
+                    const ctx = document.getElementById('treatmentGenderRatioChart').getContext('2d');
+                    
+                    if (treatmentGenderChart) {
+                        treatmentGenderChart.destroy();
+                    }
+                    
+                    treatmentGenderChart = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['男性', '女性'],
+                            datasets: [{
+                                data: [maleCount, femaleCount],
+                                backgroundColor: [
+                                    'rgba(59, 130, 246, 0.8)',  // 青
+                                    'rgba(236, 72, 153, 0.8)'   // ピンク
+                                ],
+                                borderColor: [
+                                    'rgb(59, 130, 246)',
+                                    'rgb(236, 72, 153)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom',
+                                    labels: {
+                                        padding: 15,
+                                        usePointStyle: true,
+                                        pointStyle: 'rectRounded',
+                                        font: {
+                                            size: 14
+                                        },
+                                        generateLabels: function(chart) {
+                                            const data = chart.data;
+                                            return data.labels.map((label, index) => {
+                                                const value = data.datasets[0].data[index];
+                                                const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                                
+                                                return {
+                                                    text: `${label}: ${value.toLocaleString()}件 (${percentage}%)`,
+                                                    fillStyle: data.datasets[0].backgroundColor[index],
+                                                    hidden: false,
+                                                    index: index
+                                                };
+                                            });
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            const label = context.label || '';
+                                            const value = context.parsed;
+                                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                            const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                            
+                                            return `${label}: ${value.toLocaleString()}件 (${percentage}%)`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } else {
+                document.getElementById('treatmentGenderChart').classList.add('hidden');
+            }
         }
         
         // モーダルを閉じる
@@ -1361,6 +1480,10 @@
             if (detailChart) {
                 detailChart.destroy();
                 detailChart = null;
+            }
+            if (treatmentGenderChart) {
+                treatmentGenderChart.destroy();
+                treatmentGenderChart = null;
             }
         }
         
