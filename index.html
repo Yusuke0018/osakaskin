@@ -351,6 +351,23 @@
                 </div>
             </div>
             
+            <!-- 保険データグラフ -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h3 class="text-lg font-semibold mb-4">推移グラフ</h3>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 医療収益推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">医療収益推移</h4>
+                        <canvas id="insuranceRevenueChart" width="400" height="200"></canvas>
+                    </div>
+                    <!-- 受診者数推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">受診者数推移</h4>
+                        <canvas id="insurancePatientChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 保険データが無い場合のメッセージ -->
             <div id="noInsuranceData" class="text-center py-12">
                 <p class="text-gray-500 text-lg">保険CSVファイルをアップロードしてください</p>
@@ -1356,31 +1373,72 @@
         function processInsuranceData(data, formattedMonth) {
             console.log('Processing insurance data for:', formattedMonth);
             
-            // 保険データ構造の初期化
-            let monthData = insuranceData[formattedMonth] || {
-                medicalRevenue: 0,      // 医療収益
-                firstVisitCount: 0,     // 初診件数
-                returnVisitCount: 0,    // 再診件数
-                newPatientCount: 0,     // 新患数
-                totalPatientCount: 0    // 受診者数
-            };
-            
-            // TODO: 実際のCSVフォーマットに合わせてデータ抽出ロジックを実装
-            // 現在は仮のデータ構造として設定
-            
-            // 保険データを保存
-            insuranceData[formattedMonth] = monthData;
-            localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
-            
-            // 現在の月を更新
-            currentMonth = formattedMonth;
-            updateMonthSelector();
-            document.getElementById('monthSelector').value = currentMonth;
-            
-            // 保険タブに切り替えて表示
-            switchTab('insurance');
-            
-            alert(`${formattedMonth}の保険データを読み込みました`);
+            try {
+                const lines = data.split('\n').filter(line => line.trim());
+                
+                // 保険データ構造の初期化
+                let monthData = {
+                    medicalRevenue: 0,      // 医療収益
+                    firstVisitCount: 0,     // 初診件数
+                    returnVisitCount: 0,    // 再診件数
+                    newPatientCount: 0,     // 新患数
+                    totalPatientCount: 0    // 受診者数
+                };
+                
+                // 各行を処理
+                lines.forEach((line, index) => {
+                    const cols = line.split(',');
+                    
+                    // 合計行の医療収益（金額）を取得（3行目、3列目）
+                    if (index === 2 && cols.length > 2) {
+                        const revenue = parseInt(cols[2].replace(/[^\d]/g, '')) || 0;
+                        monthData.medicalRevenue = revenue;
+                    }
+                    
+                    // 初診件数（5行目、2列目）
+                    if (index === 4 && cols.length > 1) {
+                        const firstVisit = parseInt(cols[1].replace(/[^\d]/g, '')) || 0;
+                        monthData.firstVisitCount = firstVisit;
+                    }
+                    
+                    // 再診件数（6行目、2列目）
+                    if (index === 5 && cols.length > 1) {
+                        const returnVisit = parseInt(cols[1].replace(/[^\d]/g, '')) || 0;
+                        monthData.returnVisitCount = returnVisit;
+                    }
+                    
+                    // 新患数（7行目、2列目）
+                    if (index === 6 && cols.length > 1) {
+                        const newPatient = parseInt(cols[1].replace(/[^\d]/g, '')) || 0;
+                        monthData.newPatientCount = newPatient;
+                    }
+                    
+                    // 受診者数（8行目、2列目）
+                    if (index === 7 && cols.length > 1) {
+                        const totalPatient = parseInt(cols[1].replace(/[^\d]/g, '')) || 0;
+                        monthData.totalPatientCount = totalPatient;
+                    }
+                });
+                
+                // 保険データを保存
+                insuranceData[formattedMonth] = monthData;
+                localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+                
+                console.log('保険データ処理完了:', formattedMonth, monthData);
+                
+                // 現在の月を更新
+                currentMonth = formattedMonth;
+                updateMonthSelector();
+                document.getElementById('monthSelector').value = currentMonth;
+                
+                // 保険タブに切り替えて表示
+                switchTab('insurance');
+                
+                alert(`${formattedMonth}の保険データを読み込みました`);
+            } catch (error) {
+                console.error('保険データ処理エラー:', error);
+                alert('保険データの読み込みに失敗しました。CSVファイルの形式を確認してください。');
+            }
         }
         
         // 保険データ表示
@@ -1407,6 +1465,9 @@
             document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
             document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
             document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
+            
+            // グラフを更新
+            updateInsuranceCharts();
         }
         
         // データクリア
@@ -1675,6 +1736,110 @@
             } else {
                 document.getElementById('treatmentGenderChart').classList.add('hidden');
             }
+        }
+        
+        // 保険データのグラフを更新
+        function updateInsuranceCharts() {
+            const months = Object.keys(insuranceData).sort();
+            
+            // データが無い場合は終了
+            if (months.length === 0) {
+                return;
+            }
+            
+            // グラフデータを準備
+            const revenueData = months.map(month => insuranceData[month].medicalRevenue);
+            const patientData = months.map(month => insuranceData[month].totalPatientCount);
+            
+            // 医療収益推移グラフ
+            const revenueCtx = document.getElementById('insuranceRevenueChart').getContext('2d');
+            if (window.insuranceRevenueChart) {
+                window.insuranceRevenueChart.destroy();
+            }
+            window.insuranceRevenueChart = new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '医療収益',
+                        data: revenueData,
+                        borderColor: 'rgb(34, 197, 94)',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '医療収益: ¥' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // 受診者数推移グラフ
+            const patientCtx = document.getElementById('insurancePatientChart').getContext('2d');
+            if (window.insurancePatientChart) {
+                window.insurancePatientChart.destroy();
+            }
+            window.insurancePatientChart = new Chart(patientCtx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '受診者数',
+                        data: patientData,
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '受診者数: ' + context.parsed.y.toLocaleString() + '人';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + '人';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
         
         // モーダルを閉じる
