@@ -268,18 +268,18 @@
                 }
                 
                 // データ行の処理
-                // 列1に項目名がある行がデータ行
-                if (col1 && col1.length > 0 && col1 !== '管理名称' && col1 !== '金額') {
+                // 列0に項目名があり、列1が空の行がデータ行
+                if (col0 && col0.length > 0 && col0 !== '管理名称' && col0 !== '施術' && col0 !== '物品' && col1 === '') {
                     // 削除対象項目をチェック（前後のスペースを除去して比較）
-                    const itemNameTrimmed = col1.trim();
+                    const itemNameTrimmed = col0.trim();
                     
                     // デバッグ：すべてのデータ行を表示
                     if (inTreatmentSection || inProductSection) {
-                        console.log(`Row ${i}: Data row - col0:'${col0}', col1:'${col1}', col2:'${col2}', col3:'${col3}'`);
+                        console.log(`Row ${i}: Processing - col0:'${col0}', col2:'${col2}', col3:'${col3}'`);
                     }
                     
                     if (excludeItems.includes(itemNameTrimmed)) {
-                        console.log(`Row ${i}: Excluded item:`, col1);
+                        console.log(`Row ${i}: Excluded item:`, col0);
                         continue;
                     }
                     
@@ -292,22 +292,20 @@
                         console.log(`Row ${i}: In treatment section - amount:${amount}, count:${count}`);
                         
                         if (amount > 0) {
-                            // 列0の先頭のスペースを確認
-                            const leadingSpaces = col0.match(/^(\s*)/)[1].length;
-                            const hasDeepIndent = leadingSpaces >= 6;  // 6文字以上のインデントは子項目
-                            const isSubCategory = col1.match(/^【/);
+                            // サブカテゴリ（【で始まる項目）を除外
+                            const isSubCategory = col0.match(/^【/);
                             
-                            console.log(`Row ${i}: Checking treatment - col0:'${col0}', spaces:${leadingSpaces}, col1:'${col1}', indent:${hasDeepIndent}, sub:${isSubCategory}`);
+                            console.log(`Row ${i}: Checking treatment - col0:'${col0}', sub:${isSubCategory}`);
                             
-                            if (!hasDeepIndent && !isSubCategory) {
+                            if (!isSubCategory) {
                                 monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
                                 foundTreatmentData = true;
                                 console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
                             } else {
-                                console.log(`Row ${i}: ✗ Skipped (indent:${hasDeepIndent}, sub:${isSubCategory}):`, col1);
+                                console.log(`Row ${i}: ✗ Skipped subcategory:`, col0);
                             }
                         } else {
-                            console.log(`Row ${i}: No amount for:`, col1);
+                            console.log(`Row ${i}: No amount for:`, col0);
                         }
                     }
                     // 物品項目の処理
