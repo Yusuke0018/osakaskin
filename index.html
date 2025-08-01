@@ -69,20 +69,53 @@
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">総売上サマリー</h2>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="text-center p-4 bg-gray-50 rounded-lg">
-                        <p class="text-sm text-gray-600">施術売上</p>
-                        <p id="treatmentTotal" class="text-2xl font-bold text-gray-800">-</p>
-                        <p id="treatmentComparison" class="text-sm mt-1">-</p>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">施術</p>
+                        <div class="text-center">
+                            <p id="treatmentTotal" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="treatmentComparison" class="text-sm mt-1">-</p>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">件数</span>
+                                <div class="text-right">
+                                    <span id="treatmentCount" class="font-semibold">-</span>
+                                    <p id="treatmentCountComparison" class="text-xs mt-0.5">-</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-center p-4 bg-gray-50 rounded-lg">
-                        <p class="text-sm text-gray-600">物品売上</p>
-                        <p id="productTotal" class="text-2xl font-bold text-gray-800">-</p>
-                        <p id="productComparison" class="text-sm mt-1">-</p>
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">物品</p>
+                        <div class="text-center">
+                            <p id="productTotal" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="productComparison" class="text-sm mt-1">-</p>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">件数</span>
+                                <div class="text-right">
+                                    <span id="productCount" class="font-semibold">-</span>
+                                    <p id="productCountComparison" class="text-xs mt-0.5">-</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="text-center p-4 bg-blue-50 rounded-lg">
-                        <p class="text-sm text-gray-600">総売上</p>
-                        <p id="grandTotal" class="text-2xl font-bold text-blue-800">-</p>
-                        <p id="grandComparison" class="text-sm mt-1">-</p>
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">総合計</p>
+                        <div class="text-center">
+                            <p id="grandTotal" class="text-2xl font-bold text-blue-800">-</p>
+                            <p id="grandComparison" class="text-sm mt-1">-</p>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">件数</span>
+                                <div class="text-right">
+                                    <span id="grandCount" class="font-semibold text-blue-800">-</span>
+                                    <p id="grandCountComparison" class="text-xs mt-0.5">-</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -524,7 +557,7 @@
             const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : null;
             const previousData = previousMonth ? salesData[previousMonth] : null;
             
-            // 比較計算
+            // 比較計算（金額用）
             const calculateComparison = (current, previous) => {
                 if (!previous || previous === 0) return '<span class="text-gray-400">前月データなし</span>';
                 const diff = current - previous;
@@ -534,23 +567,45 @@
                 return `<span class="${className}">${sign}${percent}% (${sign}${formatAmount(diff)})</span>`;
             };
             
+            // 比較計算（件数用）
+            const calculateCountComparison = (current, previous) => {
+                if (!previous || previous === 0) return '<span class="text-gray-400">-</span>';
+                const diff = current - previous;
+                const percent = Math.round((diff / previous) * 100);
+                const sign = diff >= 0 ? '+' : '';
+                const className = diff >= 0 ? 'comparison-positive' : 'comparison-negative';
+                return `<span class="${className}">${sign}${percent}%</span>`;
+            };
+            
             // 施術売上
             document.getElementById('treatmentTotal').textContent = formatAmount(data.totals.treatment.amount);
             document.getElementById('treatmentComparison').innerHTML = previousData ? 
                 calculateComparison(data.totals.treatment.amount, previousData.totals.treatment.amount) : 
                 '<span class="text-gray-400">前月データなし</span>';
+            document.getElementById('treatmentCount').textContent = data.totals.treatment.count.toLocaleString() + '件';
+            document.getElementById('treatmentCountComparison').innerHTML = previousData ? 
+                calculateCountComparison(data.totals.treatment.count, previousData.totals.treatment.count) : 
+                '<span class="text-gray-400">-</span>';
             
             // 物品売上
             document.getElementById('productTotal').textContent = formatAmount(data.totals.product.amount);
             document.getElementById('productComparison').innerHTML = previousData ? 
                 calculateComparison(data.totals.product.amount, previousData.totals.product.amount) : 
                 '<span class="text-gray-400">前月データなし</span>';
+            document.getElementById('productCount').textContent = data.totals.product.count.toLocaleString() + '件';
+            document.getElementById('productCountComparison').innerHTML = previousData ? 
+                calculateCountComparison(data.totals.product.count, previousData.totals.product.count) : 
+                '<span class="text-gray-400">-</span>';
             
             // 総売上
             document.getElementById('grandTotal').textContent = formatAmount(data.totals.grand.amount);
             document.getElementById('grandComparison').innerHTML = previousData ? 
                 calculateComparison(data.totals.grand.amount, previousData.totals.grand.amount) : 
                 '<span class="text-gray-400">前月データなし</span>';
+            document.getElementById('grandCount').textContent = data.totals.grand.count.toLocaleString() + '件';
+            document.getElementById('grandCountComparison').innerHTML = previousData ? 
+                calculateCountComparison(data.totals.grand.count, previousData.totals.grand.count) : 
+                '<span class="text-gray-400">-</span>';
         }
 
         // 施術ランキング表示
