@@ -326,21 +326,25 @@
                     if (inTreatmentSection) {
                         console.log(`Row ${i}: In treatment section - amount:${amount}, count:${count}`);
                         
-                        if (amount > 0) {
-                            // サブカテゴリ（【で始まる項目）を除外
-                            const isSubCategory = col0.match(/^【/);
-                            
-                            console.log(`Row ${i}: Checking treatment - col0:'${col0}', sub:${isSubCategory}`);
-                            
-                            if (!isSubCategory) {
-                                monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
-                                foundTreatmentData = true;
-                                console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
-                            } else {
-                                console.log(`Row ${i}: ✗ Skipped subcategory:`, col0);
-                            }
+                        // インデントされた項目（前にスペースがある）を除外
+                        const hasIndent = col0.match(/^[\s　]+/);
+                        // サブカテゴリ（【で始まる項目）を除外
+                        const isSubCategory = col0.match(/【/);
+                        // 親カテゴリかどうかを判断（インデントがなく、次の行にインデントされた項目がある可能性）
+                        const isParentCategory = !hasIndent && itemNameTrimmed === 'オンライン診療';
+                        
+                        console.log(`Row ${i}: Checking treatment - col0:'${col0}', sub:${isSubCategory}, parent:${isParentCategory}`);
+                        
+                        if (!hasIndent && !isSubCategory && !isParentCategory && amount > 0) {
+                            monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
+                            foundTreatmentData = true;
+                            console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
                         } else {
-                            console.log(`Row ${i}: No amount for:`, col0);
+                            console.log(`Row ${i}: ✗ Skipped:`, col0, 'reason:', 
+                                hasIndent ? 'indented' : 
+                                isSubCategory ? 'subcategory' : 
+                                isParentCategory ? 'parent category' : 
+                                'no amount');
                         }
                     }
                     // 物品項目の処理
