@@ -215,8 +215,15 @@
                 if (!row || row.length < 5) continue;
                 
                 // カラムの値を取得（BOMや余分な文字を除去）
-                const col0 = (row[0] || '').replace(/^\uFEFF/, '').trim();
-                const col1 = (row[1] || '').replace(/^\uFEFF/, '').trim();
+                // 最初の行の最初のセルに含まれる可能性のあるBOMを除去
+                let col0 = (row[0] || '').trim();
+                if (i === 0 && col0.charCodeAt(0) === 0xFEFF) {
+                    col0 = col0.substring(1);
+                }
+                // 「管理名称」の前に特殊文字がある場合も対応
+                col0 = col0.replace(/^[﻿\uFEFF]+/, '');
+                
+                const col1 = (row[1] || '').trim();
                 const col2 = (row[2] || '0').replace(/[,，"]/g, '');
                 const col3 = (row[3] || '0').replace(/[,，"]/g, '');
                 const col4 = (row[4] || '0').replace(/[,，"]/g, '');
@@ -276,17 +283,19 @@
                     
                     // 施術項目の処理
                     if (inTreatmentSection && amount > 0) {
-                        // 深いインデント（6文字以上のスペース）がある行は子項目として除外
-                        // 列0を見て判定
-                        const hasDeepIndent = col0.length >= 6;
+                        // 列0の先頭のスペースを確認（4文字以上は除外）
+                        const leadingSpaces = col0.match(/^(\s*)/)[1].length;
+                        const hasDeepIndent = leadingSpaces >= 4;
                         const isSubCategory = col1.match(/^【/);
+                        
+                        console.log(`Row ${i}: Checking treatment - col0:'${col0}', spaces:${leadingSpaces}, col1:'${col1}'`);
                         
                         if (!hasDeepIndent && !isSubCategory) {
                             monthData.treatments[itemNameTrimmed] = { amount, count, avgPrice };
                             foundTreatmentData = true;
-                            console.log(`Row ${i}: Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
+                            console.log(`Row ${i}: ✓ Added treatment:`, itemNameTrimmed, { amount, count, avgPrice });
                         } else {
-                            console.log(`Row ${i}: Skipped subcategory:`, col1);
+                            console.log(`Row ${i}: ✗ Skipped (indent:${hasDeepIndent}, sub:${isSubCategory}):`, col1);
                         }
                     }
                     // 物品項目の処理
@@ -418,6 +427,8 @@
         // 施術ランキング表示
         function displayTreatmentRanking(treatments) {
             console.log('Displaying treatment ranking:', treatments);
+            console.log('Treatment keys:', Object.keys(treatments));
+            console.log('Treatment count:', Object.keys(treatments).length);
             
             if (!treatments || Object.keys(treatments).length === 0) {
                 document.getElementById('treatmentRanking').innerHTML = '<p class="text-gray-500">施術データがありません</p>';
