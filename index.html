@@ -61,10 +61,21 @@
                     </label>
                 </div>
             </div>
+            <!-- タブナビゲーション -->
+            <div class="mt-4 border-t pt-4">
+                <nav class="flex space-x-4" aria-label="ページ切り替え">
+                    <button id="selfPayTab" onclick="switchTab('selfPay')" class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg">
+                        自費
+                    </button>
+                    <button id="insuranceTab" onclick="switchTab('insurance')" class="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                        保険
+                    </button>
+                </nav>
+            </div>
         </header>
 
-        <!-- メインコンテンツ -->
-        <div id="mainContent" class="hidden">
+        <!-- 自費ページ -->
+        <div id="selfPayContent" class="hidden">
             <!-- 総売上サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">総売上サマリー</h2>
@@ -296,6 +307,55 @@
         <div id="emptyState" class="text-center py-12">
             <p class="text-gray-500 text-lg">CSVファイルをアップロードしてください</p>
         </div>
+        
+        <!-- 保険ページ -->
+        <div id="insuranceContent" class="hidden">
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">保険診療データ</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- 医療収益 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">医療収益</p>
+                        <div class="text-center">
+                            <p id="medicalRevenue" class="text-2xl font-bold text-gray-800">-</p>
+                        </div>
+                    </div>
+                    <!-- 初診件数 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">初診件数</p>
+                        <div class="text-center">
+                            <p id="firstVisitCount" class="text-2xl font-bold text-gray-800">-</p>
+                        </div>
+                    </div>
+                    <!-- 再診件数 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">再診件数</p>
+                        <div class="text-center">
+                            <p id="returnVisitCount" class="text-2xl font-bold text-gray-800">-</p>
+                        </div>
+                    </div>
+                    <!-- 新患数 -->
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">新患数</p>
+                        <div class="text-center">
+                            <p id="newPatientCount" class="text-2xl font-bold text-blue-800">-</p>
+                        </div>
+                    </div>
+                    <!-- 受診者数 -->
+                    <div class="p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">受診者数</p>
+                        <div class="text-center">
+                            <p id="totalPatientCount" class="text-2xl font-bold text-blue-800">-</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 保険データが無い場合のメッセージ -->
+            <div id="noInsuranceData" class="text-center py-12">
+                <p class="text-gray-500 text-lg">保険CSVファイルをアップロードしてください</p>
+            </div>
+        </div>
     </div>
 
     <!-- デバッグパネル -->
@@ -311,7 +371,9 @@
     <script>
         // グローバル変数
         let salesData = {};
+        let insuranceData = {}; // 保険データ用
         let currentMonth = '';
+        let currentTab = 'selfPay'; // 現在のタブ（selfPay or insurance）
         let rankingMode = 'amount';
         let salesChart = null;
         let pieChart = null;
@@ -329,17 +391,69 @@
             document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
             document.getElementById('chartPeriod').addEventListener('change', handleChartPeriodChange);
         });
+        
+        // タブ切り替え処理
+        function switchTab(tab) {
+            currentTab = tab;
+            
+            // タブのスタイル更新
+            const selfPayTab = document.getElementById('selfPayTab');
+            const insuranceTab = document.getElementById('insuranceTab');
+            
+            if (tab === 'selfPay') {
+                selfPayTab.className = 'px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg';
+                insuranceTab.className = 'px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300';
+                
+                // コンテンツの表示切り替え
+                document.getElementById('selfPayContent').classList.remove('hidden');
+                document.getElementById('insuranceContent').classList.add('hidden');
+                
+                // 自費データがある場合は表示
+                if (currentMonth && salesData[currentMonth]) {
+                    displayData();
+                }
+            } else {
+                selfPayTab.className = 'px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300';
+                insuranceTab.className = 'px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg';
+                
+                // コンテンツの表示切り替え
+                document.getElementById('selfPayContent').classList.add('hidden');
+                document.getElementById('insuranceContent').classList.remove('hidden');
+                
+                // 保険データがある場合は表示
+                if (currentMonth && insuranceData[currentMonth]) {
+                    displayInsuranceData();
+                }
+            }
+        }
 
         // ローカルストレージからデータ読み込み
         function loadStoredData() {
+            // 自費データの読み込み
             const stored = localStorage.getItem('salesData');
             if (stored) {
                 salesData = JSON.parse(stored);
-                updateMonthSelector();
-                if (Object.keys(salesData).length > 0) {
-                    currentMonth = Object.keys(salesData).sort().pop();
-                    document.getElementById('monthSelector').value = currentMonth;
+            }
+            
+            // 保険データの読み込み
+            const storedInsurance = localStorage.getItem('insuranceData');
+            if (storedInsurance) {
+                insuranceData = JSON.parse(storedInsurance);
+            }
+            
+            updateMonthSelector();
+            
+            // データがある場合は最新の月を表示
+            const allMonths = [...Object.keys(salesData), ...Object.keys(insuranceData)];
+            if (allMonths.length > 0) {
+                currentMonth = allMonths.sort().pop();
+                document.getElementById('monthSelector').value = currentMonth;
+                
+                // 現在のタブに応じて表示
+                if (currentTab === 'selfPay' && salesData[currentMonth]) {
                     displayData();
+                } else if (currentTab === 'insurance' && insuranceData[currentMonth]) {
+                    displayInsuranceData();
                 }
             }
         }
@@ -364,19 +478,31 @@
         function processCSVData(data, filename) {
             console.log('Processing CSV data...');
             
-            // ファイル名から年月を抽出 (例: 女性科目別売上_202506-202506.csv または 科目別売上_20250701-20250731.csv)
+            // ファイルタイプの判定（保険 or 自費）
+            const isInsurance = filename.includes('保険');
+            
+            // ファイル名から年月を抽出
             let yearMonth = null;
             let formattedMonth = null;
             
-            // パターン1: 202506-202506 形式
-            const monthMatch1 = filename.match(/(\d{6})-\d{6}/);
-            if (monthMatch1) {
-                yearMonth = monthMatch1[1];
+            if (isInsurance) {
+                // 保険ファイルの場合: 保険_202506.csv 形式
+                const insuranceMatch = filename.match(/保険_(\d{6})/);
+                if (insuranceMatch) {
+                    yearMonth = insuranceMatch[1];
+                }
             } else {
-                // パターン2: 20250701-20250731 形式
-                const monthMatch2 = filename.match(/(\d{6})\d{2}/);
-                if (monthMatch2) {
-                    yearMonth = monthMatch2[1];
+                // 自費ファイルの場合
+                // パターン1: 202506-202506 形式
+                const monthMatch1 = filename.match(/(\d{6})-\d{6}/);
+                if (monthMatch1) {
+                    yearMonth = monthMatch1[1];
+                } else {
+                    // パターン2: 20250701-20250731 形式
+                    const monthMatch2 = filename.match(/(\d{6})\d{2}/);
+                    if (monthMatch2) {
+                        yearMonth = monthMatch2[1];
+                    }
                 }
             }
             
@@ -387,6 +513,13 @@
             
             formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
             
+            // 保険データの場合は別処理
+            if (isInsurance) {
+                processInsuranceData(data, formattedMonth);
+                return;
+            }
+            
+            // 以下、自費データの処理
             // ファイル名から性別を判定
             let gender = null;
             if (filename.includes('男性')) {
@@ -654,9 +787,19 @@
         function handleMonthChange(event) {
             currentMonth = event.target.value;
             if (currentMonth) {
-                displayData();
+                if (currentTab === 'selfPay' && salesData[currentMonth]) {
+                    displayData();
+                } else if (currentTab === 'insurance' && insuranceData[currentMonth]) {
+                    displayInsuranceData();
+                } else {
+                    // データがない場合
+                    document.getElementById('selfPayContent').classList.add('hidden');
+                    document.getElementById('insuranceContent').classList.add('hidden');
+                    document.getElementById('emptyState').classList.remove('hidden');
+                }
             } else {
-                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('selfPayContent').classList.add('hidden');
+                document.getElementById('insuranceContent').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
             }
         }
@@ -665,7 +808,7 @@
         function displayData() {
             if (!currentMonth || !salesData[currentMonth]) return;
             
-            document.getElementById('mainContent').classList.remove('hidden');
+            document.getElementById('selfPayContent').classList.remove('hidden');
             document.getElementById('emptyState').classList.add('hidden');
             
             const data = salesData[currentMonth];
@@ -1209,14 +1352,74 @@
             });
         }
 
+        // 保険データ処理
+        function processInsuranceData(data, formattedMonth) {
+            console.log('Processing insurance data for:', formattedMonth);
+            
+            // 保険データ構造の初期化
+            let monthData = insuranceData[formattedMonth] || {
+                medicalRevenue: 0,      // 医療収益
+                firstVisitCount: 0,     // 初診件数
+                returnVisitCount: 0,    // 再診件数
+                newPatientCount: 0,     // 新患数
+                totalPatientCount: 0    // 受診者数
+            };
+            
+            // TODO: 実際のCSVフォーマットに合わせてデータ抽出ロジックを実装
+            // 現在は仮のデータ構造として設定
+            
+            // 保険データを保存
+            insuranceData[formattedMonth] = monthData;
+            localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+            
+            // 現在の月を更新
+            currentMonth = formattedMonth;
+            updateMonthSelector();
+            document.getElementById('monthSelector').value = currentMonth;
+            
+            // 保険タブに切り替えて表示
+            switchTab('insurance');
+            
+            alert(`${formattedMonth}の保険データを読み込みました`);
+        }
+        
+        // 保険データ表示
+        function displayInsuranceData() {
+            if (!currentMonth || !insuranceData[currentMonth]) {
+                document.getElementById('noInsuranceData').classList.remove('hidden');
+                return;
+            }
+            
+            document.getElementById('noInsuranceData').classList.add('hidden');
+            document.getElementById('insuranceContent').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            
+            const data = insuranceData[currentMonth];
+            
+            // 金額フォーマット
+            const formatAmount = (amount) => '¥' + amount.toLocaleString();
+            const formatCount = (count) => count.toLocaleString() + '件';
+            const formatPeople = (count) => count.toLocaleString() + '人';
+            
+            // 各項目の表示
+            document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue);
+            document.getElementById('firstVisitCount').textContent = formatCount(data.firstVisitCount);
+            document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
+            document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
+            document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
+        }
+        
         // データクリア
         function clearAllData() {
             if (confirm('すべてのデータを削除しますか？')) {
                 localStorage.removeItem('salesData');
+                localStorage.removeItem('insuranceData');
                 salesData = {};
+                insuranceData = {};
                 currentMonth = '';
                 updateMonthSelector();
-                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('selfPayContent').classList.add('hidden');
+                document.getElementById('insuranceContent').classList.add('hidden');
                 document.getElementById('emptyState').classList.remove('hidden');
                 if (salesChart) {
                     salesChart.destroy();
