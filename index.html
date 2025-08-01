@@ -70,7 +70,29 @@
 
             <!-- 月次推移グラフ -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4">売上推移</h2>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                    <h2 class="text-xl font-semibold">売上推移</h2>
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <select id="chartPeriod" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="12">過去1年間</option>
+                            <option value="6">過去6ヶ月</option>
+                            <option value="3">過去3ヶ月</option>
+                            <option value="24">過去2年間</option>
+                            <option value="all">全期間</option>
+                            <option value="custom">期間を指定</option>
+                        </select>
+                        <div id="customPeriod" class="hidden flex gap-2">
+                            <select id="startMonth" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">開始月</option>
+                            </select>
+                            <span class="self-center">〜</span>
+                            <select id="endMonth" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">終了月</option>
+                            </select>
+                            <button onclick="applyCustomPeriod()" class="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">適用</button>
+                        </div>
+                    </div>
+                </div>
                 <div style="position: relative; height:300px;">
                     <canvas id="salesChart"></canvas>
                 </div>
@@ -168,12 +190,14 @@
         let pieChart = null;
         let showPieChart = false;
         let detailChart = null;
+        let chartPeriod = '12'; // デフォルトは過去1年間
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             loadStoredData();
             document.getElementById('csvFile').addEventListener('change', handleFileUpload);
             document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
+            document.getElementById('chartPeriod').addEventListener('change', handleChartPeriodChange);
         });
 
         // ローカルストレージからデータ読み込み
@@ -586,21 +610,33 @@
         // グラフ更新
         function updateChart() {
             const ctx = document.getElementById('salesChart').getContext('2d');
-            const months = Object.keys(salesData).sort();
+            const allMonths = Object.keys(salesData).sort();
+            
+            // 期間に応じて表示する月を決定
+            let displayMonths;
+            if (chartPeriod === 'all') {
+                displayMonths = allMonths;
+            } else if (chartPeriod === 'custom') {
+                // カスタム期間の処理は後で実装
+                displayMonths = allMonths;
+            } else {
+                const periodNum = parseInt(chartPeriod);
+                displayMonths = allMonths.slice(-periodNum);
+            }
             
             const chartData = {
-                labels: months,
+                labels: displayMonths,
                 datasets: [
                     {
                         label: '施術売上',
-                        data: months.map(month => salesData[month].totals.treatment.amount),
+                        data: displayMonths.map(month => salesData[month].totals.treatment.amount),
                         backgroundColor: 'rgba(59, 130, 246, 0.8)',
                         borderColor: 'rgb(59, 130, 246)',
                         borderWidth: 1
                     },
                     {
                         label: '物品売上',
-                        data: months.map(month => salesData[month].totals.product.amount),
+                        data: displayMonths.map(month => salesData[month].totals.product.amount),
                         backgroundColor: 'rgba(251, 146, 60, 0.8)',
                         borderColor: 'rgb(251, 146, 60)',
                         borderWidth: 1
@@ -1037,6 +1073,144 @@
                 closeModal();
             }
         });
+        
+        // 期間選択変更ハンドラー
+        function handleChartPeriodChange(event) {
+            chartPeriod = event.target.value;
+            const customPeriodDiv = document.getElementById('customPeriod');
+            
+            if (chartPeriod === 'custom') {
+                customPeriodDiv.classList.remove('hidden');
+                customPeriodDiv.classList.add('flex');
+                updateMonthSelectors();
+            } else {
+                customPeriodDiv.classList.add('hidden');
+                customPeriodDiv.classList.remove('flex');
+                updateChart();
+            }
+        }
+        
+        // 月選択セレクタを更新
+        function updateMonthSelectors() {
+            const months = Object.keys(salesData).sort();
+            const startMonthSelect = document.getElementById('startMonth');
+            const endMonthSelect = document.getElementById('endMonth');
+            
+            startMonthSelect.innerHTML = '<option value="">開始月</option>';
+            endMonthSelect.innerHTML = '<option value="">終了月</option>';
+            
+            months.forEach(month => {
+                startMonthSelect.innerHTML += `<option value="${month}">${month}</option>`;
+                endMonthSelect.innerHTML += `<option value="${month}">${month}</option>`;
+            });
+        }
+        
+        // カスタム期間を適用
+        function applyCustomPeriod() {
+            const startMonth = document.getElementById('startMonth').value;
+            const endMonth = document.getElementById('endMonth').value;
+            
+            if (!startMonth || !endMonth) {
+                alert('開始月と終了月を選択してください');
+                return;
+            }
+            
+            const months = Object.keys(salesData).sort();
+            const startIndex = months.indexOf(startMonth);
+            const endIndex = months.indexOf(endMonth);
+            
+            if (startIndex > endIndex) {
+                alert('開始月は終了月より前の日付を選択してください');
+                return;
+            }
+            
+            updateChartWithCustomPeriod(startMonth, endMonth);
+        }
+        
+        // カスタム期間でグラフを更新
+        function updateChartWithCustomPeriod(startMonth, endMonth) {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            const allMonths = Object.keys(salesData).sort();
+            const startIndex = allMonths.indexOf(startMonth);
+            const endIndex = allMonths.indexOf(endMonth);
+            const displayMonths = allMonths.slice(startIndex, endIndex + 1);
+            
+            const chartData = {
+                labels: displayMonths,
+                datasets: [
+                    {
+                        label: '施術売上',
+                        data: displayMonths.map(month => salesData[month].totals.treatment.amount),
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: '物品売上',
+                        data: displayMonths.map(month => salesData[month].totals.product.amount),
+                        backgroundColor: 'rgba(251, 146, 60, 0.8)',
+                        borderColor: 'rgb(251, 146, 60)',
+                        borderWidth: 1
+                    }
+                ]
+            };
+
+            if (salesChart) {
+                salesChart.destroy();
+            }
+
+            salesChart = new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += '¥' + context.parsed.y.toLocaleString();
+                                    return label;
+                                },
+                                afterLabel: function(context) {
+                                    const monthData = salesData[context.label];
+                                    if (monthData) {
+                                        const total = monthData.totals.grand.amount;
+                                        const percentage = Math.round((context.parsed.y / total) * 100);
+                                        return `総売上の${percentage}%`;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
         
         // デバッグ情報表示
         function showDebugInfo() {
