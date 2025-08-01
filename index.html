@@ -311,7 +311,25 @@
         <!-- 保険ページ -->
         <div id="insuranceContent" class="hidden">
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4">保険診療データ</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">保険診療データ</h2>
+                    <div class="flex items-center gap-4">
+                        <label class="text-sm text-gray-600">表示期間:</label>
+                        <select id="insurancePeriodSelector" onchange="updateInsurancePeriod()" class="px-3 py-1 border border-gray-300 rounded-md text-sm">
+                            <option value="1year" selected>過去1年間</option>
+                            <option value="6months">過去6ヶ月</option>
+                            <option value="3months">過去3ヶ月</option>
+                            <option value="all">全期間</option>
+                            <option value="custom">期間指定</option>
+                        </select>
+                        <div id="insuranceCustomPeriod" class="hidden flex items-center gap-2">
+                            <input type="month" id="insuranceStartMonth" class="px-2 py-1 border border-gray-300 rounded-md text-sm">
+                            <span class="text-sm text-gray-600">〜</span>
+                            <input type="month" id="insuranceEndMonth" class="px-2 py-1 border border-gray-300 rounded-md text-sm">
+                            <button onclick="applyInsuranceCustomPeriod()" class="px-3 py-1 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700">適用</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- 医療収益 -->
                     <div class="p-4 bg-gray-50 rounded-lg">
@@ -1862,13 +1880,17 @@
         // 保険データのグラフを更新
         function updateInsuranceCharts() {
             console.log('updateInsuranceCharts called');
-            console.log('insuranceData:', insuranceData);
             
-            const months = Object.keys(insuranceData).sort();
-            console.log('months:', months);
+            // デフォルトで過去1年間のデータを表示
+            updateInsuranceChartsWithPeriod();
+        }
+        
+        // 指定された月のデータでグラフを更新
+        function updateInsuranceChartsWithData(months) {
+            console.log('updateInsuranceChartsWithData called with months:', months);
             
             // データが無い場合は終了
-            if (months.length === 0) {
+            if (!months || months.length === 0) {
                 console.log('No data for charts');
                 return;
             }
@@ -2220,6 +2242,91 @@
                 startMonthSelect.innerHTML += `<option value="${month}">${month}</option>`;
                 endMonthSelect.innerHTML += `<option value="${month}">${month}</option>`;
             });
+        }
+        
+        // 保険データの期間選択更新
+        function updateInsurancePeriod() {
+            const periodSelector = document.getElementById('insurancePeriodSelector');
+            const customPeriodDiv = document.getElementById('insuranceCustomPeriod');
+            
+            if (periodSelector.value === 'custom') {
+                customPeriodDiv.classList.remove('hidden');
+                // デフォルトで現在月と1年前を設定
+                const now = new Date();
+                const endMonth = now.toISOString().slice(0, 7);
+                const startDate = new Date(now.getFullYear() - 1, now.getMonth());
+                const startMonth = startDate.toISOString().slice(0, 7);
+                
+                document.getElementById('insuranceStartMonth').value = startMonth;
+                document.getElementById('insuranceEndMonth').value = endMonth;
+            } else {
+                customPeriodDiv.classList.add('hidden');
+                updateInsuranceChartsWithPeriod();
+            }
+        }
+        
+        // 保険データのカスタム期間を適用
+        function applyInsuranceCustomPeriod() {
+            updateInsuranceChartsWithPeriod();
+        }
+        
+        // 期間に基づいて保険グラフを更新
+        function updateInsuranceChartsWithPeriod() {
+            const periodSelector = document.getElementById('insurancePeriodSelector');
+            const period = periodSelector.value;
+            let filteredMonths = Object.keys(insuranceData).sort();
+            
+            if (filteredMonths.length === 0) {
+                return;
+            }
+            
+            // 期間に基づいてデータをフィルタ
+            if (period === '1year') {
+                // 過去1年間
+                const endDate = new Date();
+                const startDate = new Date(endDate.getFullYear() - 1, endDate.getMonth());
+                filteredMonths = filteredMonths.filter(month => {
+                    const monthDate = new Date(month.replace('年', '-').replace('月', ''));
+                    return monthDate >= startDate && monthDate <= endDate;
+                });
+            } else if (period === '6months') {
+                // 過去6ヶ月
+                const endDate = new Date();
+                const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 5);
+                filteredMonths = filteredMonths.filter(month => {
+                    const monthDate = new Date(month.replace('年', '-').replace('月', ''));
+                    return monthDate >= startDate && monthDate <= endDate;
+                });
+            } else if (period === '3months') {
+                // 過去3ヶ月
+                const endDate = new Date();
+                const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 2);
+                filteredMonths = filteredMonths.filter(month => {
+                    const monthDate = new Date(month.replace('年', '-').replace('月', ''));
+                    return monthDate >= startDate && monthDate <= endDate;
+                });
+            } else if (period === 'custom') {
+                // カスタム期間
+                const startMonth = document.getElementById('insuranceStartMonth').value;
+                const endMonth = document.getElementById('insuranceEndMonth').value;
+                
+                if (!startMonth || !endMonth) {
+                    alert('開始月と終了月を選択してください');
+                    return;
+                }
+                
+                const startDate = new Date(startMonth);
+                const endDate = new Date(endMonth);
+                
+                filteredMonths = filteredMonths.filter(month => {
+                    const monthDate = new Date(month.replace('年', '-').replace('月', ''));
+                    return monthDate >= startDate && monthDate <= endDate;
+                });
+            }
+            // period === 'all' の場合は全期間なのでフィルタしない
+            
+            // フィルタされたデータでグラフを更新
+            updateInsuranceChartsWithData(filteredMonths);
         }
         
         // カスタム期間を適用
