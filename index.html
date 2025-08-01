@@ -1872,7 +1872,7 @@
             
             // 医療収益推移グラフ
             const revenueCtx = revenueCanvas.getContext('2d');
-            if (window.insuranceRevenueChart) {
+            if (window.insuranceRevenueChart && typeof window.insuranceRevenueChart.destroy === 'function') {
                 window.insuranceRevenueChart.destroy();
             }
             window.insuranceRevenueChart = new Chart(revenueCtx, {
@@ -1916,8 +1916,8 @@
             });
             
             // 受診者数推移グラフ
-            const patientCtx = document.getElementById('insurancePatientChart').getContext('2d');
-            if (window.insurancePatientChart) {
+            const patientCtx = patientCanvas.getContext('2d');
+            if (window.insurancePatientChart && typeof window.insurancePatientChart.destroy === 'function') {
                 window.insurancePatientChart.destroy();
             }
             window.insurancePatientChart = new Chart(patientCtx, {
@@ -1959,6 +1959,8 @@
                     }
                 }
             });
+            
+            console.log('Insurance charts updated successfully');
         }
         
         // 保険データの前月比を表示
