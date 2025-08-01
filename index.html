@@ -357,7 +357,7 @@
             </div>
             
             <!-- 保険データグラフ -->
-            <div id="insuranceChartArea" class="bg-white rounded-lg shadow-sm p-6 mt-6">
+            <div id="insuranceChartArea" class="bg-white rounded-lg shadow-sm p-6 mt-6 hidden">
                 <h3 class="text-lg font-semibold mb-4">推移グラフ</h3>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- 医療収益推移 -->
@@ -1534,12 +1534,23 @@
         function displayInsuranceData() {
             if (!currentMonth || !insuranceData[currentMonth]) {
                 document.getElementById('noInsuranceData').classList.remove('hidden');
+                // グラフエリアを非表示
+                const chartArea = document.getElementById('insuranceChartArea');
+                if (chartArea) {
+                    chartArea.classList.add('hidden');
+                }
                 return;
             }
             
             document.getElementById('noInsuranceData').classList.add('hidden');
             document.getElementById('insuranceContent').classList.remove('hidden');
             document.getElementById('emptyState').classList.add('hidden');
+            
+            // グラフエリアも表示
+            const chartArea = document.getElementById('insuranceChartArea');
+            if (chartArea) {
+                chartArea.classList.remove('hidden');
+            }
             
             const data = insuranceData[currentMonth];
             
@@ -1832,19 +1843,35 @@
         
         // 保険データのグラフを更新
         function updateInsuranceCharts() {
+            console.log('updateInsuranceCharts called');
+            console.log('insuranceData:', insuranceData);
+            
             const months = Object.keys(insuranceData).sort();
+            console.log('months:', months);
             
             // データが無い場合は終了
             if (months.length === 0) {
+                console.log('No data for charts');
                 return;
             }
             
             // グラフデータを準備
             const revenueData = months.map(month => insuranceData[month].medicalRevenue);
             const patientData = months.map(month => insuranceData[month].totalPatientCount);
+            console.log('revenueData:', revenueData);
+            console.log('patientData:', patientData);
+            
+            // canvasが存在するか確認
+            const revenueCanvas = document.getElementById('insuranceRevenueChart');
+            const patientCanvas = document.getElementById('insurancePatientChart');
+            
+            if (!revenueCanvas || !patientCanvas) {
+                console.error('Canvas elements not found');
+                return;
+            }
             
             // 医療収益推移グラフ
-            const revenueCtx = document.getElementById('insuranceRevenueChart').getContext('2d');
+            const revenueCtx = revenueCanvas.getContext('2d');
             if (window.insuranceRevenueChart) {
                 window.insuranceRevenueChart.destroy();
             }
