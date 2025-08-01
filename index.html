@@ -712,19 +712,29 @@
             if (!currentMonth || !salesData[currentMonth]) return;
             
             const treatments = salesData[currentMonth].treatments;
-            const sortedTreatments = Object.entries(treatments).sort((a, b) => {
-                return rankingMode === 'amount' ? b[1].amount - a[1].amount : b[1].count - a[1].count;
-            });
+            console.log('Pie chart - treatments:', treatments);
+            
+            const sortedTreatments = Object.entries(treatments)
+                .filter(([name, data]) => name && name !== 'undefined' && data && data.amount > 0)
+                .sort((a, b) => {
+                    return rankingMode === 'amount' ? b[1].amount - a[1].amount : b[1].count - a[1].count;
+                });
+            
+            console.log('Pie chart - sortedTreatments:', sortedTreatments);
             
             // 上位10件を取得、残りは「その他」にまとめる
             const topTreatments = sortedTreatments.slice(0, 10);
             const otherTreatments = sortedTreatments.slice(10);
             
-            const labels = topTreatments.map(([name]) => name).filter(name => name && name !== 'undefined');
-            const data = topTreatments.map(([name, data]) => {
-                if (!name || name === 'undefined') return 0;
-                return rankingMode === 'amount' ? data.amount : data.count;
-            }).filter((value, index) => labels[index]);
+            const labels = [];
+            const data = [];
+            
+            topTreatments.forEach(([name, treatmentData]) => {
+                if (name && name !== 'undefined' && name.trim() !== '') {
+                    labels.push(name);
+                    data.push(rankingMode === 'amount' ? treatmentData.amount : treatmentData.count);
+                }
+            });
             
             if (otherTreatments.length > 0) {
                 const otherValue = otherTreatments.reduce((sum, [, data]) => {
