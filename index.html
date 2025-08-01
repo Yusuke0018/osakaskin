@@ -279,6 +279,27 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- 傷病名詳細モーダル -->
+            <div id="diseaseDetailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+                <div class="relative top-20 mx-auto p-5 border w-full max-w-3xl shadow-lg rounded-md bg-white">
+                    <div class="mt-3">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 id="diseaseModalTitle" class="text-lg font-medium text-gray-900">傷病名詳細</h3>
+                            <button onclick="closeDiseaseModal()" class="text-gray-400 hover:text-gray-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div id="diseaseModalContent">
+                            <div style="position: relative; height:400px;">
+                                <canvas id="diseaseDetailChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 物品サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6">
@@ -409,6 +430,34 @@
                 </div>
             </div>
             
+            <!-- 傷病名ランキング -->
+            <div id="insuranceDiseaseRanking" class="bg-white rounded-lg shadow-sm p-6 mt-6 hidden">
+                <div class="cursor-pointer flex items-center justify-between" onclick="toggleInsuranceDiseaseRanking()">
+                    <h3 class="text-lg font-semibold">傷病名ランキング</h3>
+                    <svg id="insuranceDiseaseToggleIcon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </div>
+                <div id="insuranceDiseaseContent" class="hidden mt-4">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- 傷病名ランキングリスト -->
+                        <div>
+                            <h4 class="text-md font-medium mb-3">件数順</h4>
+                            <div id="insuranceDiseaseList" class="space-y-2 max-h-96 overflow-y-auto">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+                        <!-- 円グラフ -->
+                        <div>
+                            <h4 class="text-md font-medium mb-3">傷病名分布</h4>
+                            <div style="height: 300px; position: relative;">
+                                <canvas id="insuranceDiseasePieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 保険データが無い場合のメッセージ -->
             <div id="noInsuranceData" class="text-center py-12">
                 <p class="text-gray-500 text-lg">保険CSVファイルをアップロードしてください</p>
@@ -430,6 +479,7 @@
         // グローバル変数
         let salesData = {};
         let insuranceData = {}; // 保険データ用
+        let insuranceDiseaseData = {}; // 傷病名データ用
         let currentMonth = '';
         let currentTab = 'selfPay'; // 現在のタブ（selfPay or insurance）
         let rankingMode = 'amount';
@@ -499,6 +549,12 @@
                 insuranceData = JSON.parse(storedInsurance);
             }
             
+            // 傷病名データの読み込み
+            const storedDisease = localStorage.getItem('insuranceDiseaseData');
+            if (storedDisease) {
+                insuranceDiseaseData = JSON.parse(storedDisease);
+            }
+            
             updateMonthSelector();
             
             // データがある場合は最新の月を表示
@@ -521,8 +577,8 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // 保険ファイルの場合は、Shift-JISエンコーディングで読み込む
-            if (file.name.includes('保険')) {
+            // 保険ファイルまたは傷病名データの場合は、Shift-JISエンコーディングで読み込む
+            if (file.name.includes('保険') || file.name.includes('データ検索・抽出')) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const text = e.target.result;
@@ -548,14 +604,21 @@
         function processCSVData(data, filename) {
             console.log('Processing CSV data...');
             
-            // ファイルタイプの判定（保険 or 自費）
-            const isInsurance = filename.includes('保険');
+            // ファイルタイプの判定
+            const isInsurance = filename.includes('保険') && !filename.includes('データ検索');
+            const isDiseaseData = filename.includes('データ検索・抽出');
             
             // ファイル名から年月を抽出
             let yearMonth = null;
             let formattedMonth = null;
             
-            if (isInsurance) {
+            if (isDiseaseData) {
+                // 傷病名データの場合: データ検索・抽出_2025:06.csv 形式
+                const diseaseMatch = filename.match(/(\d{4}):(\d{2})/);
+                if (diseaseMatch) {
+                    yearMonth = diseaseMatch[1] + diseaseMatch[2];
+                }
+            } else if (isInsurance) {
                 // 保険ファイルの場合: 保険_202506.csv 形式
                 const insuranceMatch = filename.match(/保険_(\d{6})/);
                 if (insuranceMatch) {
@@ -582,6 +645,12 @@
             }
             
             formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
+            
+            // 傷病名データの場合
+            if (isDiseaseData) {
+                processDiseaseData(data, formattedMonth);
+                return;
+            }
             
             // 保険データの場合は別処理
             if (isInsurance) {
@@ -1588,6 +1657,15 @@
                 chartArea.classList.remove('hidden');
             }
             
+            // 傷病名ランキングエリアも表示（データがある場合）
+            if (insuranceDiseaseData[currentMonth]) {
+                const diseaseRankingArea = document.getElementById('insuranceDiseaseRanking');
+                if (diseaseRankingArea) {
+                    diseaseRankingArea.classList.remove('hidden');
+                    displayDiseaseRanking(currentMonth);
+                }
+            }
+            
             const data = insuranceData[currentMonth];
             
             // 金額フォーマット
@@ -2188,6 +2266,216 @@
             totalPatientEl.className = `text-sm mt-1 ${totalPatientComp.class}`;
         }
         
+        // 傷病名ランキングのトグル
+        function toggleInsuranceDiseaseRanking() {
+            const content = document.getElementById('insuranceDiseaseContent');
+            const icon = document.getElementById('insuranceDiseaseToggleIcon');
+            
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.add('rotate-180');
+            } else {
+                content.classList.add('hidden');
+                icon.classList.remove('rotate-180');
+            }
+        }
+        
+        // 傷病名ランキング表示
+        function displayDiseaseRanking(month) {
+            const diseaseData = insuranceDiseaseData[month];
+            if (!diseaseData) return;
+            
+            // 傷病名を件数順にソート
+            const sortedDiseases = Object.entries(diseaseData)
+                .sort((a, b) => b[1] - a[1]);
+            
+            // リストを表示
+            const listContainer = document.getElementById('insuranceDiseaseList');
+            listContainer.innerHTML = '';
+            
+            sortedDiseases.forEach(([disease, count], index) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors';
+                item.onclick = () => showDiseaseDetail(disease);
+                
+                item.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="font-medium text-gray-600 mr-3">${index + 1}.</span>
+                        <span class="text-gray-800">${disease}</span>
+                    </div>
+                    <span class="font-semibold text-gray-700">${count}件</span>
+                `;
+                
+                listContainer.appendChild(item);
+            });
+            
+            // 円グラフを表示
+            displayDiseasePieChart(sortedDiseases.slice(0, 10)); // 上位10件のみ
+        }
+        
+        // 傷病名の円グラフ表示
+        function displayDiseasePieChart(data) {
+            const ctx = document.getElementById('insuranceDiseasePieChart').getContext('2d');
+            
+            if (window.diseasePieChart && typeof window.diseasePieChart.destroy === 'function') {
+                window.diseasePieChart.destroy();
+            }
+            
+            const labels = data.map(d => d[0]);
+            const counts = data.map(d => d[1]);
+            const total = counts.reduce((a, b) => a + b, 0);
+            
+            // カラーパレット
+            const colors = [
+                'rgba(255, 99, 132, 0.8)',
+                'rgba(54, 162, 235, 0.8)',
+                'rgba(255, 206, 86, 0.8)',
+                'rgba(75, 192, 192, 0.8)',
+                'rgba(153, 102, 255, 0.8)',
+                'rgba(255, 159, 64, 0.8)',
+                'rgba(199, 199, 199, 0.8)',
+                'rgba(83, 102, 255, 0.8)',
+                'rgba(255, 99, 255, 0.8)',
+                'rgba(99, 255, 132, 0.8)'
+            ];
+            
+            window.diseasePieChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: counts,
+                        backgroundColor: colors,
+                        borderWidth: 1,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                font: {
+                                    size: 11
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    return data.labels.map((label, index) => {
+                                        const value = data.datasets[0].data[index];
+                                        const percentage = Math.round((value / total) * 100);
+                                        return {
+                                            text: `${label} (${percentage}%)`,
+                                            fillStyle: data.datasets[0].backgroundColor[index],
+                                            hidden: false,
+                                            index: index
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const percentage = Math.round((value / total) * 100);
+                                    return `${label}: ${value}件 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 傷病名詳細表示
+        function showDiseaseDetail(diseaseName) {
+            const modal = document.getElementById('diseaseDetailModal');
+            const title = document.getElementById('diseaseModalTitle');
+            title.textContent = diseaseName + ' - 推移';
+            
+            // 過去1年のデータを収集
+            const months = Object.keys(insuranceDiseaseData).sort();
+            const endDate = new Date();
+            const startDate = new Date(endDate.getFullYear() - 1, endDate.getMonth());
+            
+            const filteredMonths = months.filter(month => {
+                const monthDate = new Date(month.replace('年', '-').replace('月', ''));
+                return monthDate >= startDate && monthDate <= endDate;
+            });
+            
+            const monthlyData = filteredMonths.map(month => {
+                const diseaseData = insuranceDiseaseData[month] || {};
+                return diseaseData[diseaseName] || 0;
+            });
+            
+            // グラフを表示
+            const ctx = document.getElementById('diseaseDetailChart').getContext('2d');
+            
+            if (window.diseaseDetailChart && typeof window.diseaseDetailChart.destroy === 'function') {
+                window.diseaseDetailChart.destroy();
+            }
+            
+            window.diseaseDetailChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: filteredMonths,
+                    datasets: [{
+                        label: diseaseName,
+                        data: monthlyData,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 5,
+                        pointHoverRadius: 8,
+                        pointBackgroundColor: 'rgb(75, 192, 192)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y + '件';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return value + '件';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            modal.classList.remove('hidden');
+        }
+        
+        // 傷病名モーダルを閉じる
+        function closeDiseaseModal() {
+            document.getElementById('diseaseDetailModal').classList.add('hidden');
+            if (window.diseaseDetailChart) {
+                window.diseaseDetailChart.destroy();
+                window.diseaseDetailChart = null;
+            }
+        }
+        
         // モーダルを閉じる
         function closeModal() {
             document.getElementById('treatmentDetailModal').classList.add('hidden');
@@ -2322,6 +2610,54 @@
             
             // フィルタされたデータでグラフを更新
             updateInsuranceChartsWithData(filteredMonths);
+        }
+        
+        // 傷病名データ処理
+        function processDiseaseData(data, formattedMonth) {
+            console.log('Processing disease data for:', formattedMonth);
+            
+            try {
+                const lines = data.split('\n').filter(line => line.trim());
+                
+                // 傷病名をカウント
+                const diseaseCount = {};
+                
+                // ヘッダー行をスキップして各行を処理
+                for (let i = 1; i < lines.length; i++) {
+                    const cols = lines[i].split(',');
+                    if (cols.length > 9) {
+                        // 傷病名は10列目（インデックス9）
+                        const diseaseName = cols[9].trim();
+                        if (diseaseName && diseaseName !== '傷病名') {
+                            diseaseCount[diseaseName] = (diseaseCount[diseaseName] || 0) + 1;
+                        }
+                    }
+                }
+                
+                // 月ごとのデータを保存
+                if (!insuranceDiseaseData[formattedMonth]) {
+                    insuranceDiseaseData[formattedMonth] = {};
+                }
+                insuranceDiseaseData[formattedMonth] = diseaseCount;
+                
+                // ローカルストレージに保存
+                localStorage.setItem('insuranceDiseaseData', JSON.stringify(insuranceDiseaseData));
+                
+                console.log('傷病名データ処理完了:', formattedMonth, diseaseCount);
+                
+                // 現在の月を更新
+                currentMonth = formattedMonth;
+                updateMonthSelector();
+                document.getElementById('monthSelector').value = currentMonth;
+                
+                // 保険タブに切り替えて表示
+                switchTab('insurance');
+                
+                alert(`${formattedMonth}の傷病名データを読み込みました`);
+            } catch (error) {
+                console.error('傷病名データ処理エラー:', error);
+                alert('傷病名データの読み込みに失敗しました。CSVファイルの形式を確認してください。');
+            }
         }
         
         // カスタム期間を適用
