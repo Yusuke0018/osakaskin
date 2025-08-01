@@ -2650,19 +2650,29 @@
         // 傷病名データ処理
         function processDiseaseData(data, formattedMonth) {
             console.log('Processing disease data for:', formattedMonth);
+            console.log('Data type:', typeof data, 'Is Array:', Array.isArray(data));
             
             try {
-                const lines = data.split('\n').filter(line => line.trim());
+                let rows;
+                
+                // データが文字列の場合は行に分割、配列の場合はそのまま使用
+                if (typeof data === 'string') {
+                    rows = data.split('\n').filter(line => line.trim()).map(line => line.split(','));
+                } else if (Array.isArray(data)) {
+                    rows = data;
+                } else {
+                    throw new Error('データ形式が不正です');
+                }
                 
                 // 傷病名をカウント
                 const diseaseCount = {};
                 
                 // ヘッダー行をスキップして各行を処理
-                for (let i = 1; i < lines.length; i++) {
-                    const cols = lines[i].split(',');
-                    if (cols.length > 9) {
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i];
+                    if (cols && cols.length > 9) {
                         // 傷病名は10列目（インデックス9）
-                        const diseaseName = cols[9].trim();
+                        const diseaseName = cols[9] ? cols[9].trim() : '';
                         if (diseaseName && diseaseName !== '傷病名') {
                             diseaseCount[diseaseName] = (diseaseCount[diseaseName] || 0) + 1;
                         }
