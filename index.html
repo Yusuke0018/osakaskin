@@ -777,6 +777,11 @@
                     monthData.totals.grand.amount = parseInt(col2) || 0;
                     monthData.totals.grand.count = parseInt(col3) || 0;
                     console.log(`Row ${i}: Grand total:`, monthData.totals.grand);
+                    
+                    // 施術合計を「総合計 - 物品」で再計算
+                    monthData.totals.treatment.amount = monthData.totals.grand.amount - monthData.totals.product.amount;
+                    monthData.totals.treatment.count = monthData.totals.grand.count - monthData.totals.product.count;
+                    console.log(`Recalculated treatment total (grand - product):`, monthData.totals.treatment);
                     continue;
                 }
                 
@@ -869,17 +874,9 @@
             
             // 性別データの更新
             if (gender) {
-                // 性別ごとの施術データから合計を計算
-                let treatmentAmount = 0;
-                let treatmentCount = 0;
-                
-                Object.values(monthData.gender[gender].treatments || {}).forEach(treatment => {
-                    treatmentAmount += treatment.amount;
-                    treatmentCount += treatment.count;
-                });
-                
-                monthData.gender[gender].amount = treatmentAmount;
-                monthData.gender[gender].count = treatmentCount;
+                // 性別ごとの総合計（施術＋物品）を設定
+                monthData.gender[gender].amount = monthData.totals.grand.amount;
+                monthData.gender[gender].count = monthData.totals.grand.count;
                 console.log(`Updated ${gender} data:`, monthData.gender[gender]);
                 
                 // 男女両方のデータがあるかチェック
@@ -915,17 +912,17 @@
                     });
                     
                     // 合計を再計算
-                    // 施術合計を男性と女性の施術売上の合計として計算
-                    monthData.totals.treatment.amount = monthData.gender.male.amount + monthData.gender.female.amount;
-                    monthData.totals.treatment.count = monthData.gender.male.count + monthData.gender.female.count;
-                    
                     // 物品の合計を計算
                     monthData.totals.product.amount = monthData.products.external.amount + monthData.products.internal.amount + monthData.products.cosmetics.amount;
                     monthData.totals.product.count = monthData.products.external.count + monthData.products.internal.count + monthData.products.cosmetics.count;
                     
-                    // 総合計を計算（施術 + 物品）
-                    monthData.totals.grand.amount = monthData.totals.treatment.amount + monthData.totals.product.amount;
-                    monthData.totals.grand.count = monthData.totals.treatment.count + monthData.totals.product.count;
+                    // 総合計を計算（男性 + 女性の全データ）
+                    monthData.totals.grand.amount = monthData.gender.male.amount + monthData.gender.female.amount + monthData.totals.product.amount;
+                    monthData.totals.grand.count = monthData.gender.male.count + monthData.gender.female.count + monthData.totals.product.count;
+                    
+                    // 施術合計を「総合計 - 物品」で計算
+                    monthData.totals.treatment.amount = monthData.totals.grand.amount - monthData.totals.product.amount;
+                    monthData.totals.treatment.count = monthData.totals.grand.count - monthData.totals.product.count;
                 }
             }
             
