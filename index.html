@@ -120,6 +120,42 @@
                 </div>
             </div>
 
+            <!-- 男女比率 -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6 hidden" id="genderRatioSection">
+                <h2 class="text-xl font-semibold mb-4">男女比率</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-lg font-medium mb-3">人数内訳</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                                <span class="text-gray-700">男性</span>
+                                <div class="text-right">
+                                    <span id="maleCount" class="font-semibold text-lg">-</span>
+                                    <span id="maleRatio" class="text-sm text-gray-600 ml-2">-</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-pink-50 rounded-lg">
+                                <span class="text-gray-700">女性</span>
+                                <div class="text-right">
+                                    <span id="femaleCount" class="font-semibold text-lg">-</span>
+                                    <span id="femaleRatio" class="text-sm text-gray-600 ml-2">-</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center p-3 bg-gray-100 rounded-lg">
+                                <span class="text-gray-700 font-medium">合計</span>
+                                <span id="totalGenderCount" class="font-bold text-lg">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-medium mb-3">比率グラフ</h3>
+                        <div style="position: relative; height:250px;">
+                            <canvas id="genderChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 月次推移グラフ -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
@@ -277,6 +313,7 @@
         let detailChart = null;
         let chartPeriod = '12'; // デフォルトは過去1年間
         let productChart = null;
+        let genderChart = null; // 男女比率グラフ用
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
@@ -330,8 +367,16 @@
             const yearMonth = monthMatch[1]; // 202507
             const formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
             
-            // データ構造の初期化
-            const monthData = {
+            // ファイル名から性別を判定
+            let gender = null;
+            if (filename.includes('男性')) {
+                gender = 'male';
+            } else if (filename.includes('女性')) {
+                gender = 'female';
+            }
+            
+            // 既存のデータがある場合は取得、なければ初期化
+            let monthData = salesData[formattedMonth] || {
                 treatments: {},
                 products: {
                     external: { amount: 0, count: 0 },
@@ -342,6 +387,10 @@
                     treatment: { amount: 0, count: 0 },
                     product: { amount: 0, count: 0 },
                     grand: { amount: 0, count: 0 }
+                },
+                gender: {
+                    male: { amount: 0, count: 0 },
+                    female: { amount: 0, count: 0 }
                 }
             };
 
@@ -482,6 +531,13 @@
             console.log('Found treatment data:', foundTreatmentData);
             console.log('Found product data:', foundProductData);
             
+            // 性別データの更新
+            if (gender) {
+                monthData.gender[gender].amount = monthData.totals.grand.amount;
+                monthData.gender[gender].count = monthData.totals.grand.count;
+                console.log(`Updated ${gender} data:`, monthData.gender[gender]);
+            }
+            
             // データ保存
             salesData[formattedMonth] = monthData;
             localStorage.setItem('salesData', JSON.stringify(salesData));
@@ -493,7 +549,8 @@
             displayData();
             updateChart();
             
-            alert(`${formattedMonth}のデータを読み込みました`);
+            const genderText = gender === 'male' ? '男性' : gender === 'female' ? '女性' : '';
+            alert(`${formattedMonth}の${genderText}データを読み込みました`);
         }
 
         // 月選択セレクタの更新
@@ -539,6 +596,8 @@
             // 物品サマリー表示
             displayProductSummary(data.products);
             
+            // 男女比率表示（データがある場合）
+            displayGenderRatio(data.gender);
             
             // グラフ更新（複数月のデータがある場合）
             if (Object.keys(salesData).length > 0) {
@@ -1621,6 +1680,100 @@
             }
         });
         
+        // 男女比率表示
+        function displayGenderRatio(genderData) {
+            if (!genderData || (genderData.male.count === 0 && genderData.female.count === 0)) {
+                document.getElementById('genderRatioSection').classList.add('hidden');
+                return;
+            }
+            
+            document.getElementById('genderRatioSection').classList.remove('hidden');
+            
+            const maleCount = genderData.male.count;
+            const femaleCount = genderData.female.count;
+            const totalCount = maleCount + femaleCount;
+            
+            const maleRatio = totalCount > 0 ? Math.round((maleCount / totalCount) * 100) : 0;
+            const femaleRatio = totalCount > 0 ? Math.round((femaleCount / totalCount) * 100) : 0;
+            
+            // 人数と比率の表示
+            document.getElementById('maleCount').textContent = maleCount.toLocaleString() + '人';
+            document.getElementById('maleRatio').textContent = `(${maleRatio}%)`;
+            document.getElementById('femaleCount').textContent = femaleCount.toLocaleString() + '人';
+            document.getElementById('femaleRatio').textContent = `(${femaleRatio}%)`;
+            document.getElementById('totalGenderCount').textContent = totalCount.toLocaleString() + '人';
+            
+            // 円グラフの表示
+            const ctx = document.getElementById('genderChart').getContext('2d');
+            
+            if (genderChart) {
+                genderChart.destroy();
+            }
+            
+            genderChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['男性', '女性'],
+                    datasets: [{
+                        data: [maleCount, femaleCount],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',  // 青
+                            'rgba(236, 72, 153, 0.8)'   // ピンク
+                        ],
+                        borderColor: [
+                            'rgb(59, 130, 246)',
+                            'rgb(236, 72, 153)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'rectRounded',
+                                font: {
+                                    size: 14
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    return data.labels.map((label, index) => {
+                                        const value = data.datasets[0].data[index];
+                                        const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        
+                                        return {
+                                            text: `${label}: ${value.toLocaleString()}人 (${percentage}%)`,
+                                            fillStyle: data.datasets[0].backgroundColor[index],
+                                            hidden: false,
+                                            index: index
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = Math.round((value / total) * 100);
+                                    
+                                    return `${label}: ${value.toLocaleString()}人 (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
         // デバッグ情報表示
         function showDebugInfo() {
             console.log('Current salesData:', salesData);
@@ -1630,6 +1783,7 @@
                 console.log('Treatments count:', Object.keys(salesData[currentMonth].treatments).length);
                 console.log('Treatments:', salesData[currentMonth].treatments);
                 console.log('Products:', salesData[currentMonth].products);
+                console.log('Gender:', salesData[currentMonth].gender);
             }
             alert('デバッグ情報をコンソールに出力しました（F12キーで開発者ツールを開いて確認）');
         }
