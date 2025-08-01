@@ -614,9 +614,12 @@
             
             if (isDiseaseData) {
                 // 傷病名データの場合: データ検索・抽出_2025:06.csv 形式
-                const diseaseMatch = filename.match(/(\d{4}):(\d{2})/);
+                console.log('傷病名データファイル名:', filename);
+                const diseaseMatch = filename.match(/(\d{4})[:：](\d{2})/);
+                console.log('傷病名データマッチ結果:', diseaseMatch);
                 if (diseaseMatch) {
                     yearMonth = diseaseMatch[1] + diseaseMatch[2];
+                    console.log('抽出された年月:', yearMonth);
                 }
             } else if (isInsurance) {
                 // 保険ファイルの場合: 保険_202506.csv 形式
@@ -640,7 +643,15 @@
             }
             
             if (!yearMonth) {
-                alert('ファイル名から年月を特定できませんでした');
+                let expectedFormat = '';
+                if (isDiseaseData) {
+                    expectedFormat = 'データ検索・抽出_YYYY:MM.csv（例：データ検索・抽出_2025:06.csv）';
+                } else if (isInsurance) {
+                    expectedFormat = '保険_YYYYMM.csv（例：保険_202506.csv）';
+                } else {
+                    expectedFormat = 'YYYYMM-YYYYMM_xxx.csv（例：202506-202506_売上.csv）';
+                }
+                alert(`ファイル名から年月を特定できませんでした。\n期待される形式: ${expectedFormat}\n読み込んだファイル名: ${filename}`);
                 return;
             }
             
