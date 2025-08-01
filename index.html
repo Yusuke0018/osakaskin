@@ -431,14 +431,14 @@
             </div>
             
             <!-- 傷病名ランキング -->
-            <div id="insuranceDiseaseRanking" class="bg-white rounded-lg shadow-sm p-6 mt-6 hidden">
+            <div id="insuranceDiseaseRanking" class="bg-white rounded-lg shadow-sm p-6 mt-6">
                 <div class="cursor-pointer flex items-center justify-between" onclick="toggleInsuranceDiseaseRanking()">
                     <h3 class="text-lg font-semibold">傷病名ランキング</h3>
-                    <svg id="insuranceDiseaseToggleIcon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg id="insuranceDiseaseToggleIcon" class="w-5 h-5 transform transition-transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </div>
-                <div id="insuranceDiseaseContent" class="hidden mt-4">
+                <div id="insuranceDiseaseContent" class="mt-4">
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <!-- 傷病名ランキングリスト -->
                         <div>
@@ -465,15 +465,6 @@
         </div>
     </div>
 
-    <!-- デバッグパネル -->
-    <div class="fixed bottom-4 right-4">
-        <button onclick="clearAllData()" class="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700">
-            データクリア
-        </button>
-        <button onclick="showDebugInfo()" class="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 ml-2">
-            デバッグ情報
-        </button>
-    </div>
 
     <script>
         // グローバル変数
@@ -1722,29 +1713,6 @@
             updateInsuranceCharts();
         }
         
-        // データクリア
-        function clearAllData() {
-            if (confirm('すべてのデータを削除しますか？')) {
-                localStorage.removeItem('salesData');
-                localStorage.removeItem('insuranceData');
-                salesData = {};
-                insuranceData = {};
-                currentMonth = '';
-                updateMonthSelector();
-                document.getElementById('selfPayContent').classList.add('hidden');
-                document.getElementById('insuranceContent').classList.add('hidden');
-                document.getElementById('emptyState').classList.remove('hidden');
-                if (salesChart) {
-                    salesChart.destroy();
-                    salesChart = null;
-                }
-                if (pieChart) {
-                    pieChart.destroy();
-                    pieChart = null;
-                }
-                alert('データをクリアしました');
-            }
-        }
 
         // 施術詳細表示
         function showTreatmentDetail(treatmentName) {
@@ -3153,19 +3121,6 @@
             });
         }
         
-        // デバッグ情報表示
-        function showDebugInfo() {
-            console.log('Current salesData:', salesData);
-            console.log('Current month:', currentMonth);
-            if (currentMonth && salesData[currentMonth]) {
-                console.log('Current month data:', salesData[currentMonth]);
-                console.log('Treatments count:', Object.keys(salesData[currentMonth].treatments).length);
-                console.log('Treatments:', salesData[currentMonth].treatments);
-                console.log('Products:', salesData[currentMonth].products);
-                console.log('Gender:', salesData[currentMonth].gender);
-            }
-            alert('デバッグ情報をコンソールに出力しました（F12キーで開発者ツールを開いて確認）');
-        }
     </script>
 </body>
 </html>
