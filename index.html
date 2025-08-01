@@ -762,26 +762,28 @@
                 
                 // 合計行の処理（列1にデータがある）
                 if (col1 === '施術合計') {
-                    monthData.totals.treatment.amount = parseInt(col2) || 0;
-                    monthData.totals.treatment.count = parseInt(col3) || 0;
-                    console.log(`Row ${i}: Treatment total:`, monthData.totals.treatment);
+                    let originalTreatmentAmount = parseInt(col2) || 0;
+                    let originalTreatmentCount = parseInt(col3) || 0;
+                    monthData.totals.treatment.amount = originalTreatmentAmount;
+                    monthData.totals.treatment.count = originalTreatmentCount;
+                    console.log(`Row ${i}: Treatment total (before adjustment):`, monthData.totals.treatment);
                     continue;
                 }
                 if (col1 === '物品合計') {
                     monthData.totals.product.amount = parseInt(col2) || 0;
                     monthData.totals.product.count = parseInt(col3) || 0;
                     console.log(`Row ${i}: Product total:`, monthData.totals.product);
+                    
+                    // 施術合計から物品合計を引く
+                    monthData.totals.treatment.amount = monthData.totals.treatment.amount - monthData.totals.product.amount;
+                    monthData.totals.treatment.count = monthData.totals.treatment.count - monthData.totals.product.count;
+                    console.log(`Adjusted treatment total (treatment - product):`, monthData.totals.treatment);
                     continue;
                 }
                 if (col1 === '総合計') {
                     monthData.totals.grand.amount = parseInt(col2) || 0;
                     monthData.totals.grand.count = parseInt(col3) || 0;
                     console.log(`Row ${i}: Grand total:`, monthData.totals.grand);
-                    
-                    // 施術合計を「総合計 - 物品」で再計算
-                    monthData.totals.treatment.amount = monthData.totals.grand.amount - monthData.totals.product.amount;
-                    monthData.totals.treatment.count = monthData.totals.grand.count - monthData.totals.product.count;
-                    console.log(`Recalculated treatment total (grand - product):`, monthData.totals.treatment);
                     continue;
                 }
                 
@@ -917,8 +919,8 @@
                     monthData.totals.product.count = monthData.products.external.count + monthData.products.internal.count + monthData.products.cosmetics.count;
                     
                     // 総合計を計算（男性 + 女性の全データ）
-                    monthData.totals.grand.amount = monthData.gender.male.amount + monthData.gender.female.amount + monthData.totals.product.amount;
-                    monthData.totals.grand.count = monthData.gender.male.count + monthData.gender.female.count + monthData.totals.product.count;
+                    monthData.totals.grand.amount = monthData.gender.male.amount + monthData.gender.female.amount;
+                    monthData.totals.grand.count = monthData.gender.male.count + monthData.gender.female.count;
                     
                     // 施術合計を「総合計 - 物品」で計算
                     monthData.totals.treatment.amount = monthData.totals.grand.amount - monthData.totals.product.amount;
