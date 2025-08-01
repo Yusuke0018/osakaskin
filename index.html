@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>売上分析ダッシュボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .comparison-positive { color: #10b981; }
+        .comparison-negative { color: #ef4444; }
+        .rank-1 { background-color: #fef3c7; }
+        .rank-2 { background-color: #e5e7eb; }
+        .rank-3 { background-color: #fed7aa; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- ヘッダー -->
+        <header class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h1 class="text-2xl font-bold text-gray-800">売上分析ダッシュボード</h1>
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <!-- 月選択 -->
+                    <select id="monthSelector" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">月を選択</option>
+                    </select>
+                    <!-- CSVアップロード -->
+                    <label class="px-4 py-2 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition text-center">
+                        CSVアップロード
+                        <input type="file" id="csvFile" accept=".csv" class="hidden">
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <div id="mainContent" class="hidden">
+            <!-- 総売上サマリー -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">総売上サマリー</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600">施術売上</p>
+                        <p id="treatmentTotal" class="text-2xl font-bold text-gray-800">-</p>
+                        <p id="treatmentComparison" class="text-sm mt-1">-</p>
+                    </div>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600">物品売上</p>
+                        <p id="productTotal" class="text-2xl font-bold text-gray-800">-</p>
+                        <p id="productComparison" class="text-sm mt-1">-</p>
+                    </div>
+                    <div class="text-center p-4 bg-blue-50 rounded-lg">
+                        <p class="text-sm text-gray-600">総売上</p>
+                        <p id="grandTotal" class="text-2xl font-bold text-blue-800">-</p>
+                        <p id="grandComparison" class="text-sm mt-1">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 施術ランキング -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold">施術ランキング</h2>
+                    <div class="flex gap-2">
+                        <button onclick="showRanking('amount')" id="amountBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">売上順</button>
+                        <button onclick="showRanking('count')" id="countBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">件数順</button>
+                    </div>
+                </div>
+                <div id="treatmentRanking" class="overflow-x-auto">
+                    <!-- ランキングテーブル -->
+                </div>
+            </div>
+
+            <!-- 物品サマリー -->
+            <div class="bg-white rounded-lg shadow-sm p-6">
+                <h2 class="text-xl font-semibold mb-4">物品売上</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 border rounded-lg">
+                        <h3 class="font-medium text-gray-700 mb-2">外用薬</h3>
+                        <p id="externalMedicine" class="text-xl font-bold">-</p>
+                        <p id="externalComparison" class="text-sm text-gray-600 mt-1">-</p>
+                    </div>
+                    <div class="p-4 border rounded-lg">
+                        <h3 class="font-medium text-gray-700 mb-2">内服薬</h3>
+                        <p id="internalMedicine" class="text-xl font-bold">-</p>
+                        <p id="internalComparison" class="text-sm text-gray-600 mt-1">-</p>
+                    </div>
+                    <div class="p-4 border rounded-lg">
+                        <h3 class="font-medium text-gray-700 mb-2">化粧品</h3>
+                        <p id="cosmetics" class="text-xl font-bold">-</p>
+                        <p id="cosmeticsComparison" class="text-sm text-gray-600 mt-1">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 初期メッセージ -->
+        <div id="emptyState" class="text-center py-12">
+            <p class="text-gray-500 text-lg">CSVファイルをアップロードしてください</p>
+        </div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let salesData = {};
+        let currentMonth = '';
+        let rankingMode = 'amount';
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStoredData();
+            document.getElementById('csvFile').addEventListener('change', handleFileUpload);
+            document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
+        });
+
+        // ローカルストレージからデータ読み込み
+        function loadStoredData() {
+            const stored = localStorage.getItem('salesData');
+            if (stored) {
+                salesData = JSON.parse(stored);
+                updateMonthSelector();
+                if (Object.keys(salesData).length > 0) {
+                    currentMonth = Object.keys(salesData).sort().pop();
+                    document.getElementById('monthSelector').value = currentMonth;
+                    displayData();
+                }
+            }
+        }
+
+        // CSVファイルアップロード処理
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                encoding: 'UTF-8',
+                complete: function(results) {
+                    processCSVData(results.data, file.name);
+                },
+                error: function(error) {
+                    alert('CSVファイルの読み込みに失敗しました: ' + error.message);
+                }
+            });
+        }
+
+        // CSVデータ処理
+        function processCSVData(data, filename) {
+            // ファイル名から年月を抽出 (例: 科目別売上_20250701-20250731.csv)
+            const monthMatch = filename.match(/(\d{6})\d{2}/);
+            if (!monthMatch) {
+                alert('ファイル名から年月を特定できませんでした');
+                return;
+            }
+            
+            const yearMonth = monthMatch[1]; // 202507
+            const formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
+            
+            // データ構造の初期化
+            const monthData = {
+                treatments: {},
+                products: {
+                    external: { amount: 0, count: 0 },
+                    internal: { amount: 0, count: 0 },
+                    cosmetics: { amount: 0, count: 0 }
+                },
+                totals: {
+                    treatment: { amount: 0, count: 0 },
+                    product: { amount: 0, count: 0 },
+                    grand: { amount: 0, count: 0 }
+                }
+            };
+
+            // 削除対象項目
+            const excludeItems = ['診察料（自費）', '調整金額', '予約用'];
+            
+            // データ解析
+            let inTreatmentSection = false;
+            let inProductSection = false;
+            
+            for (let i = 3; i < data.length; i++) {
+                const row = data[i];
+                if (!row || row.length < 5) continue;
+                
+                const itemName = row[1] ? row[1].trim() : '';
+                const amountStr = row[2] ? row[2].replace(/,/g, '') : '0';
+                const countStr = row[3] ? row[3].replace(/,/g, '') : '0';
+                
+                // セクション判定
+                if (itemName === '施術合計') {
+                    monthData.totals.treatment.amount = parseInt(amountStr) || 0;
+                    monthData.totals.treatment.count = parseInt(countStr) || 0;
+                    continue;
+                }
+                if (itemName === '物品合計') {
+                    monthData.totals.product.amount = parseInt(amountStr) || 0;
+                    monthData.totals.product.count = parseInt(countStr) || 0;
+                    continue;
+                }
+                if (itemName === '総合計') {
+                    monthData.totals.grand.amount = parseInt(amountStr) || 0;
+                    monthData.totals.grand.count = parseInt(countStr) || 0;
+                    continue;
+                }
+                if (row[0] && row[0].includes('施術')) {
+                    inTreatmentSection = true;
+                    inProductSection = false;
+                    continue;
+                }
+                if (row[0] && row[0].includes('物品')) {
+                    inTreatmentSection = false;
+                    inProductSection = true;
+                    continue;
+                }
+                
+                // データ抽出
+                if (itemName && !excludeItems.includes(itemName)) {
+                    const amount = parseInt(amountStr) || 0;
+                    const count = parseInt(countStr) || 0;
+                    const avgPrice = parseInt(row[4] ? row[4].replace(/,/g, '') : '0') || 0;
+                    
+                    if (inTreatmentSection && amount > 0) {
+                        monthData.treatments[itemName] = { amount, count, avgPrice };
+                    } else if (inProductSection && amount > 0) {
+                        if (itemName === '外用') {
+                            monthData.products.external = { amount, count };
+                        } else if (itemName === '内服') {
+                            monthData.products.internal = { amount, count };
+                        } else if (itemName === '化粧品') {
+                            monthData.products.cosmetics = { amount, count };
+                        }
+                    }
+                }
+            }
+            
+            // データ保存
+            salesData[formattedMonth] = monthData;
+            localStorage.setItem('salesData', JSON.stringify(salesData));
+            
+            // 表示更新
+            currentMonth = formattedMonth;
+            updateMonthSelector();
+            document.getElementById('monthSelector').value = currentMonth;
+            displayData();
+            
+            alert(`${formattedMonth}のデータを読み込みました`);
+        }
+
+        // 月選択セレクタの更新
+        function updateMonthSelector() {
+            const selector = document.getElementById('monthSelector');
+            const months = Object.keys(salesData).sort();
+            
+            selector.innerHTML = '<option value="">月を選択</option>';
+            months.forEach(month => {
+                const option = document.createElement('option');
+                option.value = month;
+                option.textContent = month;
+                selector.appendChild(option);
+            });
+        }
+
+        // 月変更処理
+        function handleMonthChange(event) {
+            currentMonth = event.target.value;
+            if (currentMonth) {
+                displayData();
+            } else {
+                document.getElementById('mainContent').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+        }
+
+        // データ表示
+        function displayData() {
+            if (!currentMonth || !salesData[currentMonth]) return;
+            
+            document.getElementById('mainContent').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden');
+            
+            const data = salesData[currentMonth];
+            
+            // 総売上サマリー表示
+            displaySummary(data);
+            
+            // 施術ランキング表示
+            displayTreatmentRanking(data.treatments);
+            
+            // 物品サマリー表示
+            displayProductSummary(data.products);
+        }
+
+        // 総売上サマリー表示
+        function displaySummary(data) {
+            // 金額フォーマット
+            const formatAmount = (amount) => '¥' + amount.toLocaleString();
+            
+            // 前月データ取得
+            const months = Object.keys(salesData).sort();
+            const currentIndex = months.indexOf(currentMonth);
+            const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : null;
+            const previousData = previousMonth ? salesData[previousMonth] : null;
+            
+            // 比較計算
+            const calculateComparison = (current, previous) => {
+                if (!previous || previous === 0) return '';
+                const diff = current - previous;
+                const percent = Math.round((diff / previous) * 100);
+                const sign = diff >= 0 ? '+' : '';
+                const className = diff >= 0 ? 'comparison-positive' : 'comparison-negative';
+                return `<span class="${className}">${sign}${percent}% (${sign}${formatAmount(diff)})</span>`;
+            };
+            
+            // 施術売上
+            document.getElementById('treatmentTotal').textContent = formatAmount(data.totals.treatment.amount);
+            document.getElementById('treatmentComparison').innerHTML = previousData ? 
+                calculateComparison(data.totals.treatment.amount, previousData.totals.treatment.amount) : 
+                '<span class="text-gray-400">前月データなし</span>';
+            
+            // 物品売上
+            document.getElementById('productTotal').textContent = formatAmount(data.totals.product.amount);
+            document.getElementById('productComparison').innerHTML = previousData ? 
+                calculateComparison(data.totals.product.amount, previousData.totals.product.amount) : 
+                '<span class="text-gray-400">前月データなし</span>';
+            
+            // 総売上
+            document.getElementById('grandTotal').textContent = formatAmount(data.totals.grand.amount);
+            document.getElementById('grandComparison').innerHTML = previousData ? 
+                calculateComparison(data.totals.grand.amount, previousData.totals.grand.amount) : 
+                '<span class="text-gray-400">前月データなし</span>';
+        }
+
+        // 施術ランキング表示
+        function displayTreatmentRanking(treatments) {
+            const sortedTreatments = Object.entries(treatments).sort((a, b) => {
+                if (rankingMode === 'amount') {
+                    return b[1].amount - a[1].amount;
+                } else {
+                    return b[1].count - a[1].count;
+                }
+            });
+            
+            let html = `
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="text-left py-2">順位</th>
+                            <th class="text-left py-2">施術名</th>
+                            <th class="text-right py-2">売上金額</th>
+                            <th class="text-right py-2">件数</th>
+                            <th class="text-right py-2">平均単価</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            sortedTreatments.forEach((item, index) => {
+                const [name, data] = item;
+                const rankClass = index < 3 ? `rank-${index + 1}` : '';
+                html += `
+                    <tr class="border-b ${rankClass} fade-in">
+                        <td class="py-3">${index + 1}</td>
+                        <td class="py-3">${name}</td>
+                        <td class="text-right py-3 font-semibold">¥${data.amount.toLocaleString()}</td>
+                        <td class="text-right py-3">${data.count.toLocaleString()}件</td>
+                        <td class="text-right py-3">¥${data.avgPrice.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('treatmentRanking').innerHTML = html;
+        }
+
+        // 物品サマリー表示
+        function displayProductSummary(products) {
+            const formatAmount = (amount) => '¥' + amount.toLocaleString();
+            
+            // 前月データ取得
+            const months = Object.keys(salesData).sort();
+            const currentIndex = months.indexOf(currentMonth);
+            const previousMonth = currentIndex > 0 ? months[currentIndex - 1] : null;
+            const previousProducts = previousMonth ? salesData[previousMonth].products : null;
+            
+            // 比較表示
+            const showComparison = (current, previous) => {
+                if (!previous || previous.amount === 0) return '前月データなし';
+                const diff = current.amount - previous.amount;
+                const percent = Math.round((diff / previous.amount) * 100);
+                const sign = diff >= 0 ? '+' : '';
+                const className = diff >= 0 ? 'comparison-positive' : 'comparison-negative';
+                return `<span class="${className}">前月比: ${sign}${percent}%</span>`;
+            };
+            
+            // 外用薬
+            document.getElementById('externalMedicine').textContent = formatAmount(products.external.amount);
+            document.getElementById('externalComparison').innerHTML = previousProducts ? 
+                showComparison(products.external, previousProducts.external) : '前月データなし';
+            
+            // 内服薬
+            document.getElementById('internalMedicine').textContent = formatAmount(products.internal.amount);
+            document.getElementById('internalComparison').innerHTML = previousProducts ? 
+                showComparison(products.internal, previousProducts.internal) : '前月データなし';
+            
+            // 化粧品
+            document.getElementById('cosmetics').textContent = formatAmount(products.cosmetics.amount);
+            document.getElementById('cosmeticsComparison').innerHTML = previousProducts ? 
+                showComparison(products.cosmetics, previousProducts.cosmetics) : '前月データなし';
+        }
+
+        // ランキング切り替え
+        function showRanking(mode) {
+            rankingMode = mode;
+            
+            // ボタンスタイル切り替え
+            const amountBtn = document.getElementById('amountBtn');
+            const countBtn = document.getElementById('countBtn');
+            
+            if (mode === 'amount') {
+                amountBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm';
+                countBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm';
+            } else {
+                amountBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm';
+                countBtn.className = 'px-4 py-2 bg-blue-600 text-white rounded-lg text-sm';
+            }
+            
+            // ランキング再表示
+            if (currentMonth && salesData[currentMonth]) {
+                displayTreatmentRanking(salesData[currentMonth].treatments);
+            }
+        }
+    </script>
+</body>
+</html>
