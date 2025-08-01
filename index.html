@@ -92,25 +92,6 @@
                 </div>
             </div>
 
-            <!-- トレンド分析 -->
-            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4">施術トレンド分析</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 class="text-lg font-medium text-green-700 mb-3">📈 成長中の施術 (TOP 5)</h3>
-                        <div id="growingTreatments" class="space-y-2">
-                            <!-- 成長中の施術リスト -->
-                        </div>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-medium text-red-700 mb-3">📉 減少中の施術 (TOP 5)</h3>
-                        <div id="decliningTreatments" class="space-y-2">
-                            <!-- 減少中の施術リスト -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- 物品サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6">
                 <h2 class="text-xl font-semibold mb-4">物品売上</h2>
@@ -415,8 +396,6 @@
             // 物品サマリー表示
             displayProductSummary(data.products);
             
-            // トレンド分析表示
-            displayTrendAnalysis();
             
             // グラフ更新（複数月のデータがある場合）
             if (Object.keys(salesData).length > 0) {
@@ -699,94 +678,6 @@
             }
         }
         
-        // トレンド分析表示
-        function displayTrendAnalysis() {
-            const months = Object.keys(salesData).sort();
-            const currentIndex = months.indexOf(currentMonth);
-            
-            // 少なくとも2ヶ月分のデータが必要
-            if (months.length < 2 || currentIndex < 1) {
-                document.getElementById('growingTreatments').innerHTML = '<p class="text-gray-500">データが不十分です</p>';
-                document.getElementById('decliningTreatments').innerHTML = '<p class="text-gray-500">データが不十分です</p>';
-                return;
-            }
-            
-            const currentData = salesData[currentMonth].treatments;
-            const previousMonth = months[currentIndex - 1];
-            const previousData = salesData[previousMonth].treatments;
-            
-            // 変化率を計算
-            const changes = [];
-            Object.keys(currentData).forEach(name => {
-                if (previousData[name]) {
-                    const currentAmount = currentData[name].amount;
-                    const previousAmount = previousData[name].amount;
-                    const change = currentAmount - previousAmount;
-                    const changePercent = (change / previousAmount) * 100;
-                    
-                    changes.push({
-                        name: name,
-                        currentAmount: currentAmount,
-                        previousAmount: previousAmount,
-                        change: change,
-                        changePercent: changePercent
-                    });
-                }
-            });
-            
-            // 新規施術（前月にない施術）
-            Object.keys(currentData).forEach(name => {
-                if (!previousData[name] && currentData[name].amount > 0) {
-                    changes.push({
-                        name: name,
-                        currentAmount: currentData[name].amount,
-                        previousAmount: 0,
-                        change: currentData[name].amount,
-                        changePercent: 100,
-                        isNew: true
-                    });
-                }
-            });
-            
-            // 成長率でソート
-            changes.sort((a, b) => b.changePercent - a.changePercent);
-            
-            // 成長中の施術（上位5件）
-            const growing = changes.filter(item => item.change > 0).slice(0, 5);
-            let growingHtml = '';
-            growing.forEach(item => {
-                const newBadge = item.isNew ? '<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded ml-2">NEW</span>' : '';
-                growingHtml += `
-                    <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <div class="flex items-center">
-                            <span class="font-medium">${item.name}</span>${newBadge}
-                        </div>
-                        <div class="text-right">
-                            <span class="text-green-700 font-bold">+${Math.round(item.changePercent)}%</span>
-                            <div class="text-sm text-gray-600">¥${item.currentAmount.toLocaleString()}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            document.getElementById('growingTreatments').innerHTML = growingHtml || '<p class="text-gray-500">成長中の施術がありません</p>';
-            
-            // 減少中の施術（下位5件）
-            const declining = changes.filter(item => item.change < 0).slice(-5).reverse();
-            let decliningHtml = '';
-            declining.forEach(item => {
-                decliningHtml += `
-                    <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                        <span class="font-medium">${item.name}</span>
-                        <div class="text-right">
-                            <span class="text-red-700 font-bold">${Math.round(item.changePercent)}%</span>
-                            <div class="text-sm text-gray-600">¥${item.currentAmount.toLocaleString()}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            document.getElementById('decliningTreatments').innerHTML = decliningHtml || '<p class="text-gray-500">減少中の施術がありません</p>';
-        }
-        
         // 円グラフ表示
         function displayPieChart() {
             if (!currentMonth || !salesData[currentMonth]) return;
@@ -800,8 +691,11 @@
             const topTreatments = sortedTreatments.slice(0, 10);
             const otherTreatments = sortedTreatments.slice(10);
             
-            const labels = topTreatments.map(([name]) => name);
-            const data = topTreatments.map(([, data]) => rankingMode === 'amount' ? data.amount : data.count);
+            const labels = topTreatments.map(([name]) => name).filter(name => name && name !== 'undefined');
+            const data = topTreatments.map(([name, data]) => {
+                if (!name || name === 'undefined') return 0;
+                return rankingMode === 'amount' ? data.amount : data.count;
+            }).filter((value, index) => labels[index]);
             
             if (otherTreatments.length > 0) {
                 const otherValue = otherTreatments.reduce((sum, [, data]) => {
@@ -846,6 +740,12 @@
                         legend: {
                             position: 'right',
                             labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'rectRounded',
+                                font: {
+                                    size: 12
+                                },
                                 generateLabels: function(chart) {
                                     const original = Chart.defaults.plugins.legend.labels.generateLabels;
                                     const labels = original.call(this, chart);
