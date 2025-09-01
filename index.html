@@ -1331,12 +1331,17 @@
                 // 前月比計算
                 let changeDisplay = '<span class="text-gray-400">-</span>';
                 if (previousData && previousData[name]) {
-                    const prevAmount = previousData[name].amount;
-                    const change = data.amount - prevAmount;
-                    const changePercent = Math.round((change / prevAmount) * 100);
-                    const changeClass = change >= 0 ? 'comparison-positive' : 'comparison-negative';
-                    const sign = change >= 0 ? '+' : '';
-                    changeDisplay = `<span class="${changeClass}">${sign}${changePercent}%</span>`;
+                    const prevMetric = rankingMode === 'amount' ? previousData[name].amount : previousData[name].count;
+                    const currMetric = rankingMode === 'amount' ? data.amount : data.count;
+                    if (prevMetric && prevMetric > 0) {
+                        const change = currMetric - prevMetric;
+                        const changePercent = Math.round((change / prevMetric) * 100);
+                        const changeClass = change >= 0 ? 'comparison-positive' : 'comparison-negative';
+                        const sign = change >= 0 ? '+' : '';
+                        changeDisplay = `<span class="${changeClass}">${sign}${changePercent}%</span>`;
+                    } else {
+                        changeDisplay = '<span class="text-gray-400">-</span>';
+                    }
                 }
                 
                 // 男女比の計算
