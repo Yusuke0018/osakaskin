@@ -79,7 +79,7 @@
             <!-- 総売上サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">総売上サマリー</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div class="p-4 bg-gray-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">施術</p>
                         <div class="text-center">
@@ -126,6 +126,14 @@
                                     <p id="grandCountComparison" class="text-xs mt-0.5">-</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                    <!-- 営業日数 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">営業日数</p>
+                        <div class="text-center">
+                            <p id="businessDaysSelf" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="businessDaysSelfMethod" class="text-xs mt-1 text-gray-500">-</p>
                         </div>
                     </div>
                 </div>
@@ -392,6 +400,14 @@
                             <p id="totalPatientCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
+                    <!-- 営業日数 -->
+                    <div class="p-4 bg-gray-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">営業日数</p>
+                        <div class="text-center">
+                            <p id="businessDaysInsurance" class="text-2xl font-bold text-gray-800">-</p>
+                            <p id="businessDaysInsuranceMethod" class="text-sm mt-1 text-gray-500"></p>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -472,6 +488,7 @@
         let insuranceData = {}; // 保険データ用
         let insuranceDiseaseData = {}; // 傷病名データ用
         let currentMonth = '';
+        let workdayData = {}; // 営業日数データ { formattedMonth: { saleDays: string[], saleDaysCount: number, weekdaysCount: number } }
         let currentTab = 'selfPay'; // 現在のタブ（selfPay or insurance）
         let rankingMode = 'amount';
         let salesChart = null;
@@ -530,6 +547,98 @@
             }
             return null;
         }
+
+        // 営業日数ユーティリティ
+        function parseFormattedYearMonth(formattedMonth) {
+            // 'YYYY年MM月' -> { y, m }
+            if (!formattedMonth) return { y: 1970, m: 1 };
+            const m = formattedMonth.match(/(\d{4})年(\d{1,2})月/);
+            if (m) return { y: parseInt(m[1]), m: parseInt(m[2]) };
+            // フォールバック: 'YYYY-MM'
+            const m2 = formattedMonth.match(/(\d{4})[-/](\d{1,2})/);
+            if (m2) return { y: parseInt(m2[1]), m: parseInt(m2[2]) };
+            return { y: 1970, m: 1 };
+        }
+
+        function countWeekdaysInMonth(year, month, includeSaturday = false) {
+            const d = new Date(year, month - 1, 1);
+            let count = 0;
+            while (d.getMonth() === month - 1) {
+                const day = d.getDay(); // 0=Sun, 6=Sat
+                if (includeSaturday) {
+                    if (day !== 0) count++;
+                } else {
+                    if (day > 0 && day < 6) count++;
+                }
+                d.setDate(d.getDate() + 1);
+            }
+            return count;
+        }
+
+        function collectSaleDaysFromRows(rows, formattedMonth) {
+            try {
+                const { y, m } = parseFormattedYearMonth(formattedMonth);
+                const saleDays = new Set();
+                const normalize = (s) => normalizeHalfWidth((s || '').toString().trim());
+                const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/;
+                const reYmd = /(\d{4})(\d{2})(\d{2})/;
+                const reMd = /(\d{1,2})[\/\-.月](\d{1,2})日?/;
+                const reDOnly = /(?<!\d)(\d{1,2})日(?!\d)/;
+                for (const r of rows) {
+                    if (!r) continue;
+                    for (const cell of r) {
+                        const s = normalize(cell);
+                        if (!s) continue;
+                        let match;
+                        if ((match = s.match(reFull))) {
+                            const yy = parseInt(match[1]);
+                            const mm = parseInt(match[2]);
+                            const dd = parseInt(match[3]);
+                            if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        if ((match = s.match(reYmd))) {
+                            const yy = parseInt(match[1]);
+                            const mm = parseInt(match[2]);
+                            const dd = parseInt(match[3]);
+                            if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        if ((match = s.match(reMd))) {
+                            const mm = parseInt(match[1]);
+                            const dd = parseInt(match[2]);
+                            if (mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        if ((match = s.match(reDOnly))) {
+                            const dd = parseInt(match[1]);
+                            if (dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                    }
+                }
+                return Array.from(saleDays).sort((a,b)=>a-b);
+            } catch (_) {
+                return [];
+            }
+        }
+
+        function updateWorkdayFromRows(rows, formattedMonth) {
+            try {
+                if (!Array.isArray(rows)) return;
+                const saleDays = collectSaleDaysFromRows(rows, formattedMonth);
+                const { y, m } = parseFormattedYearMonth(formattedMonth);
+                const weekdays = countWeekdaysInMonth(y, m, false);
+                workdayData[formattedMonth] = {
+                    saleDays: saleDays.map(d => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`),
+                    saleDaysCount: saleDays.length,
+                    weekdaysCount: weekdays
+                };
+                localStorage.setItem('workdayData', JSON.stringify(workdayData));
+            } catch (e) {
+                console.warn('営業日数の更新に失敗:', e);
+            }
+        }
         
         // タブ切り替え処理
         function switchTab(tab) {
@@ -584,6 +693,11 @@
             const storedDisease = localStorage.getItem('insuranceDiseaseData');
             if (storedDisease) {
                 insuranceDiseaseData = JSON.parse(storedDisease);
+            }
+            // 営業日数データの読み込み
+            const storedWorkday = localStorage.getItem('workdayData');
+            if (storedWorkday) {
+                workdayData = JSON.parse(storedWorkday);
             }
             
             updateMonthSelector();
@@ -976,6 +1090,14 @@
             // データ保存
             salesData[formattedMonth] = monthData;
             localStorage.setItem('salesData', JSON.stringify(salesData));
+            // 営業日数（売上発生日）抽出と保存
+            try {
+                if (Array.isArray(data)) {
+                    updateWorkdayFromRows(data, formattedMonth);
+                }
+            } catch (e) {
+                console.warn('営業日数抽出（自費）でエラー:', e);
+            }
             
             // 表示更新
             currentMonth = formattedMonth;
@@ -1114,6 +1236,25 @@
             document.getElementById('grandCountComparison').innerHTML = previousData ? 
                 calculateCountComparison(data.totals.grand.count, previousData.totals.grand.count) : 
                 '<span class="text-gray-400">-</span>';
+
+            // 営業日数（自費）
+            try {
+                const wd = workdayData[currentMonth];
+                const methodEl = document.getElementById('businessDaysSelfMethod');
+                const valueEl = document.getElementById('businessDaysSelf');
+                if (wd && wd.saleDaysCount > 0) {
+                    valueEl.textContent = wd.saleDaysCount + '日';
+                    if (methodEl) methodEl.textContent = '売上発生日数';
+                } else {
+                    // フォールバック：平日日数（Mon-Fri）
+                    const { y, m } = parseFormattedYearMonth(currentMonth);
+                    const weekdays = countWeekdaysInMonth(y, m, false);
+                    valueEl.textContent = weekdays + '日';
+                    if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
+                }
+            } catch (e) {
+                console.warn('営業日数表示（自費）エラー:', e);
+            }
         }
 
         // 施術ランキング表示
@@ -1706,6 +1847,15 @@
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
 
+                // 営業日数（売上発生日）抽出と保存
+                try {
+                    if (Array.isArray(rows)) {
+                        updateWorkdayFromRows(rows, formattedMonth);
+                    }
+                } catch (e) {
+                    console.warn('営業日数抽出（保険）でエラー:', e);
+                }
+
                 currentMonth = formattedMonth;
                 updateMonthSelector();
                 document.getElementById('monthSelector').value = currentMonth;
@@ -1761,6 +1911,26 @@
             document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
             document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
             document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
+
+            // 営業日数（保険）
+            try {
+                const wd = workdayData[currentMonth];
+                const methodEl = document.getElementById('businessDaysInsuranceMethod');
+                const valueEl = document.getElementById('businessDaysInsurance');
+                if (valueEl) {
+                    if (wd && wd.saleDaysCount > 0) {
+                        valueEl.textContent = wd.saleDaysCount + '日';
+                        if (methodEl) methodEl.textContent = '売上発生日数';
+                    } else {
+                        const { y, m } = parseFormattedYearMonth(currentMonth);
+                        const weekdays = countWeekdaysInMonth(y, m, false);
+                        valueEl.textContent = weekdays + '日';
+                        if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
+                    }
+                }
+            } catch (e) {
+                console.warn('営業日数表示（保険）エラー:', e);
+            }
             
             // 前月比の計算と表示
             displayInsuranceComparison(currentMonth);
