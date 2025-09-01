@@ -490,6 +490,46 @@
             document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
             document.getElementById('chartPeriod').addEventListener('change', handleChartPeriodChange);
         });
+
+        // ユーティリティ
+        const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬'];
+        const DISEASE_FILE_KEYWORDS = ['データ検索', '抽出', '傷病名', '病名', '診断名'];
+        const SUM_KEYWORDS = ['合計', '総合計', '総計'];
+        const REVENUE_KEYWORDS = ['医療収益', '診療収益', '収益', '売上', '金額'];
+        const POINTS_KEYWORDS = ['点数', '保険点数'];
+        const FIRST_VISIT_KEYWORDS = ['初診', '初来'];
+        const RETURN_VISIT_KEYWORDS = ['再診', '再来'];
+        const NEW_PATIENT_KEYWORDS = ['新患', '新規', '新規患者'];
+        const TOTAL_PATIENT_KEYWORDS = ['受診者', '実人数', '患者数', '来院者', '実患者'];
+
+        function includesAny(text, keys) {
+            return keys.some(k => text.includes(k));
+        }
+
+        function normalizeHalfWidth(str) {
+            if (!str) return '';
+            // 全角数字とコロンを半角に寄せる（年月抽出の安定化）
+            const z2h = str.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                           .replace(/：/g, ':');
+            return z2h;
+        }
+
+        function extractYearMonthFromName(filename) {
+            const name = normalizeHalfWidth(filename);
+            // パターン優先順：YYYY年MM月, YYYY:MM, YYYY-MM, YYYY_MM, YYYY.MM, YYYY/MM, 連番YYYYMM
+            const patterns = [
+                /(\d{4})年(\d{2})月/,
+                /(\d{4})[:](\d{2})/,
+                /(\d{4})[-_./](\d{2})/,
+                /(\d{4})(\d{2})(?!\d)/, // 後続に数字が続かない6桁（YYYYMM）
+                /(\d{4})(\d{2})/ // フォールバック（先頭6桁）
+            ];
+            for (const re of patterns) {
+                const m = name.match(re);
+                if (m) return m[1] + m[2];
+            }
+            return null;
+        }
         
         // タブ切り替え処理
         function switchTab(tab) {
@@ -569,14 +609,16 @@
             if (!file) return;
 
             console.log('Uploaded file name:', file.name);
-            
-            // 保険ファイルまたは傷病名データの場合は、Shift-JISエンコーディングで読み込む
-            if (file.name.includes('保険') || file.name.includes('データ検索') || file.name.includes('抽出')) {
+            const fname = file.name;
+            // 保険/傷病名ファイルは Shift-JIS 読み（名称多様化対応）
+            const isInsuranceLike = includesAny(fname, INSURANCE_FILE_KEYWORDS);
+            const isDiseaseLike = includesAny(fname, DISEASE_FILE_KEYWORDS);
+            if (isInsuranceLike || isDiseaseLike) {
                 console.log('Processing as Shift-JIS file');
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     const text = e.target.result;
-                    processCSVData(text, file.name);
+                    processCSVData(text, fname);
                 };
                 // Shift-JISで読み込み
                 reader.readAsText(file, 'Shift-JIS');
@@ -585,7 +627,7 @@
                 Papa.parse(file, {
                     encoding: 'UTF-8',
                     complete: function(results) {
-                        processCSVData(results.data, file.name);
+                        processCSVData(results.data, fname);
                     },
                     error: function(error) {
                         alert('CSVファイルの読み込みに失敗しました: ' + error.message);
@@ -600,8 +642,8 @@
             console.log('Original filename:', filename);
             
             // ファイルタイプの判定（ファイル名による判定）
-            const isInsurance = filename.includes('保険') && !filename.includes('データ検索');
-            const isDiseaseData = filename.includes('データ検索') || filename.includes('抽出');
+            const isDiseaseData = includesAny(filename, DISEASE_FILE_KEYWORDS);
+            const isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData;
             console.log('File type - Insurance:', isInsurance, 'Disease:', isDiseaseData);
             
             // ファイル名から年月を抽出
@@ -637,11 +679,9 @@
                     console.log('抽出された年月:', yearMonth);
                 }
             } else if (isInsurance) {
-                // 保険ファイルの場合: 保険_202506.csv 形式
-                const insuranceMatch = filename.match(/保険_(\d{6})/);
-                if (insuranceMatch) {
-                    yearMonth = insuranceMatch[1];
-                }
+                // 保険ファイルの年月抽出（名称多様化対応）
+                const ym = extractYearMonthFromName(filename);
+                if (ym) yearMonth = ym;
             } else {
                 // 自費ファイルの場合
                 // パターン1: 202506-202506 形式
@@ -653,6 +693,11 @@
                     const monthMatch2 = filename.match(/(\d{6})\d{2}/);
                     if (monthMatch2) {
                         yearMonth = monthMatch2[1];
+                    }
+                    if (!yearMonth) {
+                        // より柔軟に YYYY-MM / YYYY_MM / YYYY.MM / YYYY年MM月
+                        const ym = extractYearMonthFromName(filename);
+                        if (ym) yearMonth = ym;
                     }
                 }
             }
@@ -1530,147 +1575,145 @@
             });
         }
 
-        // 保険データ処理
+        // 保険データ処理（名称多様化＆堅牢化）
         function processInsuranceData(data, formattedMonth) {
             console.log('Processing insurance data for:', formattedMonth);
-            console.log('Raw data first 500 chars:', data.substring(0, 500));
-            
             try {
-                const lines = data.split('\n').filter(line => line.trim());
-                console.log('Total lines:', lines.length);
-                
-                // 保険データ構造の初期化
-                let monthData = {
-                    medicalRevenue: 0,      // 医療収益
-                    firstVisitCount: 0,     // 初診件数
-                    returnVisitCount: 0,    // 再診件数
-                    newPatientCount: 0,     // 新患数
-                    totalPatientCount: 0    // 受診者数
-                };
-                
-                // デバッグ用：最初の10行を表示
-                console.log('First 10 lines:');
-                lines.slice(0, 10).forEach((line, index) => {
-                    console.log(`Line ${index}:`, line);
-                });
-                
-                // 各行を処理 - より柔軟な検索方法を使用
-                let foundRevenue = false;
-                let foundCounts = false;
-                
-                lines.forEach((line, index) => {
-                    const cols = line.split(',');
-                    
-                    // 「合計」を含む行を探して医療収益を取得
-                    if (!foundRevenue && line.includes('合計') && cols.length > 2) {
-                        console.log('Found revenue line:', line);
-                        console.log('Columns:', cols);
-                        
-                        // 通常、医療収益は3列目（インデックス2）にある
-                        // 保険点数（2列目）と医療収益（3列目）を区別
-                        if (cols.length > 2) {
-                            // 医療収益（実際の金額）は3列目
-                            const revenueStr = cols[2].replace(/[^\d]/g, '');
-                            const revenue = parseInt(revenueStr) || 0;
-                            
-                            // 保険点数（2列目）も確認用に取得
-                            const pointsStr = cols[1].replace(/[^\d]/g, '');
-                            const points = parseInt(pointsStr) || 0;
-                            
-                            console.log('保険点数:', points, '医療収益:', revenue);
-                            
-                            // 医療収益を保存（保険点数の約10倍が医療収益）
-                            monthData.medicalRevenue = revenue;
-                            foundRevenue = true;
-                        }
-                    }
-                    
-                    // 「初診」を含む行を探す
-                    if (line.includes('初診') && !line.includes('再診')) {
-                        console.log('Found first visit line:', line);
-                        for (let i = 1; i < cols.length; i++) {
-                            const value = parseInt(cols[i].replace(/[^\d]/g, '')) || 0;
-                            if (value > 0 && value < 10000) { // 件数は通常小さめの数値
-                                monthData.firstVisitCount = value;
-                                console.log('Extracted first visit:', value);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // 「再診」を含む行を探す
-                    if (line.includes('再診') && !line.includes('初診')) {
-                        console.log('Found return visit line:', line);
-                        for (let i = 1; i < cols.length; i++) {
-                            const value = parseInt(cols[i].replace(/[^\d]/g, '')) || 0;
-                            if (value > 0 && value < 10000) {
-                                monthData.returnVisitCount = value;
-                                console.log('Extracted return visit:', value);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // 「新患」を含む行を探す
-                    if (line.includes('新患')) {
-                        console.log('Found new patient line:', line);
-                        for (let i = 1; i < cols.length; i++) {
-                            const value = parseInt(cols[i].replace(/[^\d]/g, '')) || 0;
-                            if (value > 0 && value < 10000) {
-                                monthData.newPatientCount = value;
-                                console.log('Extracted new patient:', value);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    // 「受診者数」を含む行を探す
-                    if (line.includes('受診者') || line.includes('実人数')) {
-                        console.log('Found total patient line:', line);
-                        for (let i = 1; i < cols.length; i++) {
-                            const value = parseInt(cols[i].replace(/[^\d]/g, '')) || 0;
-                            if (value > 0 && value < 10000) {
-                                monthData.totalPatientCount = value;
-                                console.log('Extracted total patient:', value);
-                                break;
-                            }
-                        }
-                    }
-                });
-                
-                // データが正しく読み込まれたかチェック
-                const hasValidData = monthData.medicalRevenue > 0 || 
-                                   monthData.firstVisitCount > 0 || 
-                                   monthData.returnVisitCount > 0 ||
-                                   monthData.newPatientCount > 0 ||
-                                   monthData.totalPatientCount > 0;
-                
-                if (!hasValidData) {
-                    console.warn('警告: データが見つかりませんでした。CSVの形式を確認してください。');
-                    console.log('期待される形式: 合計行に医療収益（3列目）、初診・再診・新患・受診者数の各行');
+                // 行配列にパース（引用符/カンマ対応のため PapaParse を利用）
+                let rows;
+                if (typeof data === 'string') {
+                    const parsed = (typeof Papa !== 'undefined') ? Papa.parse(data, { skipEmptyLines: true }) : { data: data.split('\n').map(l => l.split(',')) };
+                    rows = parsed.data;
+                } else if (Array.isArray(data)) {
+                    rows = data;
+                } else {
+                    rows = [];
                 }
-                
-                // 保険データを保存
+
+                // 正規化（トリム）
+                rows = rows.map(r => r.map(c => (c || '').toString().trim()));
+
+                // 保険データ構造
+                let monthData = {
+                    medicalRevenue: 0,
+                    firstVisitCount: 0,
+                    returnVisitCount: 0,
+                    newPatientCount: 0,
+                    totalPatientCount: 0
+                };
+
+                // ヘッダー候補を探索
+                let headerIdx = -1;
+                let revenueCol = -1;
+                let pointsCol = -1;
+                let countCols = [];
+                for (let i = 0; i < Math.min(rows.length, 20); i++) {
+                    const r = rows[i];
+                    if (!r || r.length < 2) continue;
+                    if (r.some(c => includesAny(c, REVENUE_KEYWORDS) || includesAny(c, POINTS_KEYWORDS) || /件数|人数|回数/.test(c))) {
+                        headerIdx = i;
+                        revenueCol = r.findIndex(c => includesAny(c, REVENUE_KEYWORDS));
+                        pointsCol = r.findIndex(c => includesAny(c, POINTS_KEYWORDS));
+                        r.forEach((c, idx) => { if (/件数|人数|回数/.test(c)) countCols.push(idx); });
+                        break;
+                    }
+                }
+
+                function parseIntSafe(str) {
+                    const n = parseInt((str || '').toString().replace(/[^\d-]/g, ''));
+                    return isNaN(n) ? 0 : n;
+                }
+
+                function pickLastNumber(row) {
+                    let val = 0;
+                    for (let i = row.length - 1; i >= 0; i--) {
+                        const v = parseIntSafe(row[i]);
+                        if (v) { val = v; break; }
+                    }
+                    return val;
+                }
+
+                // 各行を走査して抽出
+                for (let i = 0; i < rows.length; i++) {
+                    const r = rows[i];
+                    if (!r || r.length === 0) continue;
+                    const line = r.join(',');
+
+                    // 収益（合計）
+                    if (monthData.medicalRevenue === 0 && (includesAny(line, SUM_KEYWORDS) || includesAny(line, REVENUE_KEYWORDS))) {
+                        let revenue = 0;
+                        if (revenueCol >= 0 && r[revenueCol]) {
+                            revenue = parseIntSafe(r[revenueCol]);
+                        }
+                        if (!revenue) {
+                            // 金額が特定できない場合は行内の最後の数値を使用
+                            revenue = pickLastNumber(r);
+                        }
+                        monthData.medicalRevenue = revenue;
+                        continue;
+                    }
+
+                    // 初診
+                    if (includesAny(line, FIRST_VISIT_KEYWORDS) && !includesAny(line, RETURN_VISIT_KEYWORDS)) {
+                        let v = 0;
+                        if (countCols.length) {
+                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
+                        }
+                        if (!v) v = pickLastNumber(r);
+                        if (v && v < 100000) monthData.firstVisitCount = v;
+                        continue;
+                    }
+
+                    // 再診
+                    if (includesAny(line, RETURN_VISIT_KEYWORDS) && !includesAny(line, FIRST_VISIT_KEYWORDS)) {
+                        let v = 0;
+                        if (countCols.length) {
+                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
+                        }
+                        if (!v) v = pickLastNumber(r);
+                        if (v && v < 100000) monthData.returnVisitCount = v;
+                        continue;
+                    }
+
+                    // 新患 / 新規
+                    if (includesAny(line, NEW_PATIENT_KEYWORDS)) {
+                        let v = 0;
+                        if (countCols.length) {
+                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
+                        }
+                        if (!v) v = pickLastNumber(r);
+                        if (v && v < 100000) monthData.newPatientCount = v;
+                        continue;
+                    }
+
+                    // 受診者/患者/来院者（実人数）
+                    if (includesAny(line, TOTAL_PATIENT_KEYWORDS)) {
+                        let v = 0;
+                        if (countCols.length) {
+                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
+                        }
+                        if (!v) v = pickLastNumber(r);
+                        if (v && v < 1000000) monthData.totalPatientCount = v;
+                        continue;
+                    }
+                }
+
+                const hasValidData = monthData.medicalRevenue > 0 || monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0 || monthData.newPatientCount > 0 || monthData.totalPatientCount > 0;
+                if (!hasValidData) {
+                    console.warn('警告: 保険データの主要項目が抽出できませんでした。ファイル名やラベルのバリエーションをご確認ください。');
+                }
+
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
-                
-                console.log('保険データ処理完了:', formattedMonth, monthData);
-                
-                // 現在の月を更新
+
                 currentMonth = formattedMonth;
                 updateMonthSelector();
                 document.getElementById('monthSelector').value = currentMonth;
-                
-                // 保険タブに切り替えて表示
                 switchTab('insurance');
-                
-                // データが正常に読み込まれた場合のみ成功メッセージを表示
-                if (hasValidData) {
-                    alert(`${formattedMonth}の保険データを読み込みました`);
-                }
+                if (hasValidData) alert(`${formattedMonth}の保険データを読み込みました`);
             } catch (error) {
                 console.error('保険データ処理エラー:', error);
-                // エラーメッセージは表示しない（データは表示されているため）
+                // ユーザー通知は抑制（他タブ操作を継続可能に）
             }
         }
         
