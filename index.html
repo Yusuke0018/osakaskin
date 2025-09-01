@@ -548,6 +548,25 @@
             return null;
         }
 
+        // テキスト内容から YYYYMM を抽出（最初に見つかった日付を使用）
+        function extractYearMonthFromText(text) {
+            if (!text) return null;
+            const s = normalizeHalfWidth(text);
+            // YYYY/MM/DD, YYYY-MM-DD, YYYY.MM.DD, YYYY年MM月DD日
+            const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/;
+            const m1 = s.match(reFull);
+            if (m1) {
+                const yy = m1[1];
+                const mm = String(parseInt(m1[2], 10)).padStart(2, '0');
+                return yy + mm;
+            }
+            // YYYYMMDD
+            const reYmd = /(\d{4})(\d{2})(\d{2})/;
+            const m2 = s.match(reYmd);
+            if (m2) return m2[1] + m2[2];
+            return null;
+        }
+
         // 営業日数ユーティリティ
         function parseFormattedYearMonth(formattedMonth) {
             // 'YYYY年MM月' -> { y, m }
@@ -814,6 +833,22 @@
                 if (diseaseMatch) {
                     yearMonth = diseaseMatch[1] + diseaseMatch[2];
                     console.log('抽出された年月:', yearMonth);
+                }
+                // 追加フォールバック：ファイル名から一般抽出
+                if (!yearMonth) {
+                    const ym = extractYearMonthFromName(filename);
+                    if (ym) {
+                        yearMonth = ym;
+                        console.log('一般抽出から年月取得:', yearMonth);
+                    }
+                }
+                // 追加フォールバック：内容テキストから抽出（UTF-8/Shift-JIS どちらでも数字は取得可）
+                if (!yearMonth && typeof data === 'string') {
+                    const ym2 = extractYearMonthFromText(data);
+                    if (ym2) {
+                        yearMonth = ym2;
+                        console.log('内容テキストから年月取得:', yearMonth);
+                    }
                 }
             } else if (isInsurance) {
                 // 保険ファイルの年月抽出（名称多様化対応）
