@@ -722,15 +722,67 @@
         }
 
         function updateWorkdayFromRows(rows, formattedMonth) {
+            // 開始日列がある場合のみ、開始日のユニーク件数で更新
             try {
-                if (!Array.isArray(rows)) return;
-                const saleDays = collectSaleDaysFromRows(rows, formattedMonth);
+                if (!Array.isArray(rows) || rows.length === 0) return;
                 const { y, m } = parseFormattedYearMonth(formattedMonth);
-                const weekdays = countWeekdaysInMonth(y, m, false);
+                // ヘッダーから「開始日」列を特定（なければ更新しない）
+                const header = rows[0].map(c => (c || '').toString());
+                let startCol = -1;
+                for (let idx = 0; idx < header.length; idx++) {
+                    if (normalizeHalfWidth(header[idx]).includes('開始日')) { startCol = idx; break; }
+                }
+                if (startCol < 0) return; // 開始日列が無ければ何もしない
+
+                const saleDays = new Set();
+                const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/;
+                const reYmd = /(\d{4})(\d{2})(\d{2})/;
+                const reMd = /(\d{1,2})[\/\-.月](\d{1,2})日?/;
+                function parseEra(s) {
+                    const t = normalizeHalfWidth((s || '').toString().trim());
+                    let mt = t.match(/令和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                    if (mt) return { yy: 2018 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    mt = t.match(/平成\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                    if (mt) return { yy: 1988 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    mt = t.match(/昭和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                    if (mt) return { yy: 1925 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    return null;
+                }
+                for (let i = 1; i < rows.length; i++) {
+                    const r = rows[i];
+                    if (!r || r.length <= startCol) continue;
+                    const s = (r[startCol] || '').toString();
+                    let mo;
+                    if ((mo = s.match(reFull))) {
+                        const yy = parseInt(mo[1]);
+                        const mm = parseInt(mo[2]);
+                        const dd = parseInt(mo[3]);
+                        if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                        continue;
+                    }
+                    if ((mo = s.match(reYmd))) {
+                        const yy = parseInt(mo[1]);
+                        const mm = parseInt(mo[2]);
+                        const dd = parseInt(mo[3]);
+                        if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                        continue;
+                    }
+                    if ((mo = s.match(reMd))) {
+                        const mm = parseInt(mo[1]);
+                        const dd = parseInt(mo[2]);
+                        if (mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                        continue;
+                    }
+                    const era = parseEra(s);
+                    if (era && era.yy === y && era.mm === m && era.dd >= 1 && era.dd <= 31) {
+                        saleDays.add(era.dd);
+                    }
+                }
+                const saleDayList = Array.from(saleDays).sort((a,b)=>a-b);
                 workdayData[formattedMonth] = {
-                    saleDays: saleDays.map(d => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`),
-                    saleDaysCount: saleDays.length,
-                    weekdaysCount: weekdays
+                    saleDays: saleDayList.map(d => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`),
+                    saleDaysCount: saleDayList.length,
+                    weekdaysCount: countWeekdaysInMonth(y, m, false)
                 };
                 localStorage.setItem('workdayData', JSON.stringify(workdayData));
             } catch (e) {
@@ -1343,7 +1395,7 @@
                 const valueEl = document.getElementById('businessDaysSelf');
                 if (wd && wd.saleDaysCount > 0) {
                     valueEl.textContent = wd.saleDaysCount + '日';
-                    if (methodEl) methodEl.textContent = '売上発生日数';
+                    if (methodEl) methodEl.textContent = '開始日件数';
                 } else {
                     // フォールバック：平日日数（Mon-Fri）
                     const { y, m } = parseFormattedYearMonth(currentMonth);
@@ -2053,7 +2105,7 @@
                 if (valueEl) {
                     if (wd && wd.saleDaysCount > 0) {
                         valueEl.textContent = wd.saleDaysCount + '日';
-                        if (methodEl) methodEl.textContent = '売上発生日数';
+                        if (methodEl) methodEl.textContent = '開始日件数';
                     } else {
                         const { y, m } = parseFormattedYearMonth(currentMonth);
                         const weekdays = countWeekdaysInMonth(y, m, false);
@@ -3014,7 +3066,73 @@
                 
                 // ローカルストレージに保存
                 localStorage.setItem('insuranceDiseaseData', JSON.stringify(insuranceDiseaseData));
-                
+
+                // 営業日数（開始日ベース）を更新
+                try {
+                    const { y, m } = parseFormattedYearMonth(formattedMonth);
+                    // ヘッダーから「開始日」列を特定（なければL列=11）
+                    let startCol = 11;
+                    if (rows && rows.length > 0) {
+                        const header = rows[0].map(c => (c || '').toString());
+                        for (let idx = 0; idx < header.length; idx++) {
+                            if (normalizeHalfWidth(header[idx]).includes('開始日')) { startCol = idx; break; }
+                        }
+                    }
+                    const saleDays = new Set();
+                    const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/;
+                    const reYmd = /(\d{4})(\d{2})(\d{2})/;
+                    const reMd = /(\d{1,2})[\/\-.月](\d{1,2})日?/;
+                    function parseEra(s) {
+                        const t = normalizeHalfWidth((s || '').toString().trim());
+                        let mt = t.match(/令和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                        if (mt) return { yy: 2018 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                        mt = t.match(/平成\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                        if (mt) return { yy: 1988 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                        mt = t.match(/昭和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/);
+                        if (mt) return { yy: 1925 + parseInt(mt[1], 10), mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                        return null;
+                    }
+                    for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || r.length <= startCol) continue;
+                        const s = (r[startCol] || '').toString();
+                        let mo;
+                        if ((mo = s.match(reFull))) {
+                            const yy = parseInt(mo[1]);
+                            const mm = parseInt(mo[2]);
+                            const dd = parseInt(mo[3]);
+                            if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        if ((mo = s.match(reYmd))) {
+                            const yy = parseInt(mo[1]);
+                            const mm = parseInt(mo[2]);
+                            const dd = parseInt(mo[3]);
+                            if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        if ((mo = s.match(reMd))) {
+                            const mm = parseInt(mo[1]);
+                            const dd = parseInt(mo[2]);
+                            if (mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
+                            continue;
+                        }
+                        const era = parseEra(s);
+                        if (era && era.yy === y && era.mm === m && era.dd >= 1 && era.dd <= 31) {
+                            saleDays.add(era.dd);
+                        }
+                    }
+                    const saleDayList = Array.from(saleDays).sort((a,b)=>a-b);
+                    workdayData[formattedMonth] = {
+                        saleDays: saleDayList.map(d => `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`),
+                        saleDaysCount: saleDayList.length,
+                        weekdaysCount: countWeekdaysInMonth(y, m, false)
+                    };
+                    localStorage.setItem('workdayData', JSON.stringify(workdayData));
+                } catch (e) {
+                    console.warn('営業日数更新（開始日ベース）でエラー:', e);
+                }
+
                 console.log('傷病名データ処理完了:', formattedMonth, diseaseCount);
                 
                 // 現在の月を更新
