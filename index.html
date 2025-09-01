@@ -1210,7 +1210,13 @@
         // 月選択セレクタの更新
         function updateMonthSelector() {
             const selector = document.getElementById('monthSelector');
-            const months = Object.keys(salesData).sort();
+            // 自費・保険・傷病名の全データから月を集約
+            const monthSet = new Set([
+                ...Object.keys(salesData || {}),
+                ...Object.keys(insuranceData || {}),
+                ...Object.keys(insuranceDiseaseData || {})
+            ]);
+            const months = Array.from(monthSet).sort();
             
             selector.innerHTML = '<option value="">月を選択</option>';
             months.forEach(month => {
@@ -3016,8 +3022,15 @@
                 updateMonthSelector();
                 document.getElementById('monthSelector').value = currentMonth;
                 
-                // 保険タブに切り替えて表示
+                // 保険タブに切り替えてランキングを即時表示
                 switchTab('insurance');
+                try {
+                    const diseaseRankingArea = document.getElementById('insuranceDiseaseRanking');
+                    if (diseaseRankingArea) diseaseRankingArea.classList.remove('hidden');
+                    displayDiseaseRanking(currentMonth);
+                } catch (e) {
+                    console.warn('傷病名ランキングの描画でエラー:', e);
+                }
                 
                 alert(`${formattedMonth}の傷病名データを読み込みました`);
             } catch (error) {
