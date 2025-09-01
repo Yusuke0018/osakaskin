@@ -567,6 +567,62 @@
             return null;
         }
 
+        // 文字列の日付から YYYYMM を抽出
+        function extractYyyyMmFromDateString(s) {
+            if (!s) return null;
+            const t = normalizeHalfWidth(s.toString().trim());
+            // 西暦系
+            let m = t.match(/(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/);
+            if (m) return m[1] + String(parseInt(m[2], 10)).padStart(2, '0');
+            m = t.match(/(\d{4})(\d{2})(\d{2})/);
+            if (m) return m[1] + m[2];
+            m = t.match(/(\d{4})[\/\-.年](\d{1,2})月?/); // 年月まで
+            if (m) return m[1] + String(parseInt(m[2], 10)).padStart(2, '0');
+            // 和暦系
+            let mt = t.match(/令和\s*(\d+)年\s*(\d{1,2})月/);
+            if (mt) return String(2018 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            mt = t.match(/平成\s*(\d+)年\s*(\d{1,2})月/);
+            if (mt) return String(1988 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            mt = t.match(/昭和\s*(\d+)年\s*(\d{1,2})月/);
+            if (mt) return String(1925 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            return null;
+        }
+
+        // 傷病名CSV内（L列=開始日）から YYYYMM を決定（最頻値を採用）
+        function deriveDiseaseYearMonthFromData(data) {
+            try {
+                let rows;
+                if (typeof data === 'string') {
+                    const parsed = (typeof Papa !== 'undefined') ? Papa.parse(data, { skipEmptyLines: true }) : { data: data.split('\n').map(l => l.split(',')) };
+                    rows = parsed.data;
+                } else if (Array.isArray(data)) {
+                    rows = data;
+                } else {
+                    return null;
+                }
+                if (!rows || rows.length === 0) return null;
+
+                const monthCounter = {};
+                for (let i = 1; i < rows.length; i++) { // 0行目はヘッダー想定
+                    const cols = rows[i];
+                    if (!cols || cols.length <= 11) continue; // L列(インデックス11)が無い
+                    const startDate = cols[11]; // 開始日
+                    const ym = extractYyyyMmFromDateString(startDate);
+                    if (ym) monthCounter[ym] = (monthCounter[ym] || 0) + 1;
+                }
+                // 最頻のYYYYMMを返す
+                let best = null;
+                let bestCount = -1;
+                for (const [ym, cnt] of Object.entries(monthCounter)) {
+                    if (cnt > bestCount) { best = ym; bestCount = cnt; }
+                }
+                return best;
+            } catch (e) {
+                console.warn('deriveDiseaseYearMonthFromData error:', e);
+                return null;
+            }
+        }
+
         // 営業日数ユーティリティ
         function parseFormattedYearMonth(formattedMonth) {
             // 'YYYY年MM月' -> { y, m }
@@ -807,27 +863,26 @@
             let formattedMonth = null;
             
             if (isDiseaseData) {
-                // 傷病名データの場合: まずはファイル名から汎用抽出（YYYYMM）
-                console.log('傷病名データファイル名:', filename);
-                const ymFromName = extractYearMonthFromName(filename);
-                if (ymFromName) {
-                    yearMonth = ymFromName;
-                    console.log('ファイル名から年月取得:', yearMonth);
-                }
-                // ファイル名で取れない場合のみ、コロン形式の互換も試す（YYYY:MM / YYYY：MM）
-                if (!yearMonth) {
-                    const m1 = filename.match(/(\d{4})[:：](\d{2})/);
-                    if (m1) {
-                        yearMonth = m1[1] + m1[2];
-                        console.log('コロン形式から年月取得:', yearMonth);
+                // 傷病名データの場合: ファイル内のL列（開始日）から年月を決定
+                const ymFromData = deriveDiseaseYearMonthFromData(data);
+                if (ymFromData) {
+                    yearMonth = ymFromData;
+                    console.log('L列(開始日)から年月取得:', yearMonth);
+                } else {
+                    // フォールバック（最小限）：内容テキストから抽出、最後にファイル名から抽出
+                    if (typeof data === 'string') {
+                        const ym2 = extractYearMonthFromText(data);
+                        if (ym2) {
+                            yearMonth = ym2;
+                            console.log('内容テキストから年月取得(フォールバック):', yearMonth);
+                        }
                     }
-                }
-                // さらにダメなら内容テキストから YYYY/MM/DD, YYYYMMDD を抽出
-                if (!yearMonth && typeof data === 'string') {
-                    const ym2 = extractYearMonthFromText(data);
-                    if (ym2) {
-                        yearMonth = ym2;
-                        console.log('内容テキストから年月取得:', yearMonth);
+                    if (!yearMonth) {
+                        const ym3 = extractYearMonthFromName(filename);
+                        if (ym3) {
+                            yearMonth = ym3;
+                            console.log('ファイル名から年月取得(フォールバック):', yearMonth);
+                        }
                     }
                 }
             } else if (isInsurance) {
