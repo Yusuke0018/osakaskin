@@ -1748,14 +1748,22 @@
                 let revenueCol = -1;
                 let pointsCol = -1;
                 let countCols = [];
+                let outpatientCol = -1; // 入外区分：外来 列
+                let labelCol = 0;       // ラベル（初診/再診/新患 等）列
                 for (let i = 0; i < Math.min(rows.length, 20); i++) {
                     const r = rows[i];
                     if (!r || r.length < 2) continue;
-                    if (r.some(c => includesAny(c, REVENUE_KEYWORDS) || includesAny(c, POINTS_KEYWORDS) || /件数|人数|回数/.test(c))) {
+                    if (r.some(c => includesAny(c, REVENUE_KEYWORDS) || includesAny(c, POINTS_KEYWORDS) || /件数|人数|回数|入外|外来|入院|区分|名称|項目/.test(c))) {
                         headerIdx = i;
+                        // 金額/点数/件数系
                         revenueCol = r.findIndex(c => includesAny(c, REVENUE_KEYWORDS));
                         pointsCol = r.findIndex(c => includesAny(c, POINTS_KEYWORDS));
                         r.forEach((c, idx) => { if (/件数|人数|回数/.test(c)) countCols.push(idx); });
+                        // 外来列を優先検出
+                        outpatientCol = r.findIndex(c => /(入外|入外区分).*外来/.test(c) || /外来/.test(c));
+                        // ラベル列（区分/項目/名称 等）
+                        const labelIdx = r.findIndex(c => /区分|項目|名称|内容|種別|種目|内訳|診療行為/.test(c));
+                        if (labelIdx >= 0) labelCol = labelIdx; else labelCol = 0;
                         break;
                     }
                 }
@@ -1780,6 +1788,20 @@
                     if (!r || r.length === 0) continue;
                     const line = r.join(',');
 
+                    // 値取得ヘルパ（外来列を最優先）
+                    function valueFromRow(row) {
+                        let v = 0;
+                        if (outpatientCol >= 0 && row[outpatientCol]) {
+                            v = parseIntSafe(row[outpatientCol]);
+                            if (v) return v;
+                        }
+                        if (countCols.length) {
+                            for (const c of countCols) { v = parseIntSafe(row[c]); if (v) break; }
+                            if (v) return v;
+                        }
+                        return pickLastNumber(row);
+                    }
+
                     // 収益（合計）
                     if (monthData.medicalRevenue === 0 && (includesAny(line, SUM_KEYWORDS) || includesAny(line, REVENUE_KEYWORDS))) {
                         let revenue = 0;
@@ -1794,46 +1816,33 @@
                         continue;
                     }
 
+                    // ラベルセル（行名）
+                    const labelCell = (r[labelCol] || '').toString();
+
                     // 初診
-                    if (includesAny(line, FIRST_VISIT_KEYWORDS) && !includesAny(line, RETURN_VISIT_KEYWORDS)) {
-                        let v = 0;
-                        if (countCols.length) {
-                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
-                        }
-                        if (!v) v = pickLastNumber(r);
+                    if ((includesAny(labelCell, FIRST_VISIT_KEYWORDS) || (labelCol === 0 && includesAny(line, FIRST_VISIT_KEYWORDS))) && !includesAny(labelCell, RETURN_VISIT_KEYWORDS)) {
+                        const v = valueFromRow(r);
                         if (v && v < 100000) monthData.firstVisitCount = v;
                         continue;
                     }
 
                     // 再診
-                    if (includesAny(line, RETURN_VISIT_KEYWORDS) && !includesAny(line, FIRST_VISIT_KEYWORDS)) {
-                        let v = 0;
-                        if (countCols.length) {
-                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
-                        }
-                        if (!v) v = pickLastNumber(r);
+                    if ((includesAny(labelCell, RETURN_VISIT_KEYWORDS) || (labelCol === 0 && includesAny(line, RETURN_VISIT_KEYWORDS))) && !includesAny(labelCell, FIRST_VISIT_KEYWORDS)) {
+                        const v = valueFromRow(r);
                         if (v && v < 100000) monthData.returnVisitCount = v;
                         continue;
                     }
 
                     // 新患 / 新規
-                    if (includesAny(line, NEW_PATIENT_KEYWORDS)) {
-                        let v = 0;
-                        if (countCols.length) {
-                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
-                        }
-                        if (!v) v = pickLastNumber(r);
+                    if (includesAny(labelCell, NEW_PATIENT_KEYWORDS) || (labelCol === 0 && includesAny(line, NEW_PATIENT_KEYWORDS))) {
+                        const v = valueFromRow(r);
                         if (v && v < 100000) monthData.newPatientCount = v;
                         continue;
                     }
 
                     // 受診者/患者/来院者（実人数）
-                    if (includesAny(line, TOTAL_PATIENT_KEYWORDS)) {
-                        let v = 0;
-                        if (countCols.length) {
-                            for (const c of countCols) { v = parseIntSafe(r[c]); if (v) break; }
-                        }
-                        if (!v) v = pickLastNumber(r);
+                    if (includesAny(labelCell, TOTAL_PATIENT_KEYWORDS) || (labelCol === 0 && includesAny(line, TOTAL_PATIENT_KEYWORDS))) {
+                        const v = valueFromRow(r);
                         if (v && v < 1000000) monthData.totalPatientCount = v;
                         continue;
                     }
