@@ -807,42 +807,22 @@
             let formattedMonth = null;
             
             if (isDiseaseData) {
-                // 傷病名データの場合: データ検索・抽出_2025:06.csv 形式
+                // 傷病名データの場合: まずはファイル名から汎用抽出（YYYYMM）
                 console.log('傷病名データファイル名:', filename);
-                
-                // ファイル名の文字コードをデバッグ
-                for (let i = 0; i < filename.length; i++) {
-                    const char = filename.charAt(i);
-                    const code = filename.charCodeAt(i);
-                    if (char === ':' || char === '：' || code === 58 || code === 65306) {
-                        console.log(`位置 ${i}: 文字 '${char}', コード: ${code}`);
-                    }
+                const ymFromName = extractYearMonthFromName(filename);
+                if (ymFromName) {
+                    yearMonth = ymFromName;
+                    console.log('ファイル名から年月取得:', yearMonth);
                 }
-                
-                // 複数のパターンを試す
-                let diseaseMatch = filename.match(/(\d{4})[:：](\d{2})/);
-                if (!diseaseMatch) {
-                    // ファイル名に含まれる可能性のある特殊文字に対応
-                    diseaseMatch = filename.match(/(\d{4})[:\uff1a](\d{2})/); // \uff1a は全角コロン
-                }
-                if (!diseaseMatch) {
-                    // より柔軟なパターン
-                    diseaseMatch = filename.match(/(\d{4}).(\d{2})/); // 任意の1文字
-                }
-                console.log('傷病名データマッチ結果:', diseaseMatch);
-                if (diseaseMatch) {
-                    yearMonth = diseaseMatch[1] + diseaseMatch[2];
-                    console.log('抽出された年月:', yearMonth);
-                }
-                // 追加フォールバック：ファイル名から一般抽出
+                // ファイル名で取れない場合のみ、コロン形式の互換も試す（YYYY:MM / YYYY：MM）
                 if (!yearMonth) {
-                    const ym = extractYearMonthFromName(filename);
-                    if (ym) {
-                        yearMonth = ym;
-                        console.log('一般抽出から年月取得:', yearMonth);
+                    const m1 = filename.match(/(\d{4})[:：](\d{2})/);
+                    if (m1) {
+                        yearMonth = m1[1] + m1[2];
+                        console.log('コロン形式から年月取得:', yearMonth);
                     }
                 }
-                // 追加フォールバック：内容テキストから抽出（UTF-8/Shift-JIS どちらでも数字は取得可）
+                // さらにダメなら内容テキストから YYYY/MM/DD, YYYYMMDD を抽出
                 if (!yearMonth && typeof data === 'string') {
                     const ym2 = extractYearMonthFromText(data);
                     if (ym2) {
