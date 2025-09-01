@@ -583,13 +583,34 @@
                 const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})日?/;
                 const reYmd = /(\d{4})(\d{2})(\d{2})/;
                 const reMd = /(\d{1,2})[\/\-.月](\d{1,2})日?/;
-                const reDOnly = /(?<!\d)(\d{1,2})日(?!\d)/;
+
+                // 和暦（令和/平成/昭和）の日付に対応
+                function matchJapaneseEraDate(s) {
+                    const reiwa = /令和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/;
+                    const heisei = /平成\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/;
+                    const showa = /昭和\s*(\d+)年\s*(\d{1,2})月\s*(\d{1,2})日?/;
+                    let mt;
+                    if ((mt = s.match(reiwa))) {
+                        const yy = 2018 + parseInt(mt[1], 10); // 令和1=2019
+                        return { yy, mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    }
+                    if ((mt = s.match(heisei))) {
+                        const yy = 1988 + parseInt(mt[1], 10); // 平成1=1989
+                        return { yy, mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    }
+                    if ((mt = s.match(showa))) {
+                        const yy = 1925 + parseInt(mt[1], 10); // 昭和1=1926
+                        return { yy, mm: parseInt(mt[2], 10), dd: parseInt(mt[3], 10) };
+                    }
+                    return null;
+                }
                 for (const r of rows) {
                     if (!r) continue;
                     for (const cell of r) {
                         const s = normalize(cell);
                         if (!s) continue;
                         let match;
+                        // ISO/西暦
                         if ((match = s.match(reFull))) {
                             const yy = parseInt(match[1]);
                             const mm = parseInt(match[2]);
@@ -610,9 +631,11 @@
                             if (mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
                             continue;
                         }
-                        if ((match = s.match(reDOnly))) {
-                            const dd = parseInt(match[1]);
-                            if (dd >= 1 && dd <= 31) saleDays.add(dd);
+                        // 和暦
+                        const era = matchJapaneseEraDate(s);
+                        if (era) {
+                            const { yy, mm, dd } = era;
+                            if (yy === y && mm === m && dd >= 1 && dd <= 31) saleDays.add(dd);
                             continue;
                         }
                     }
