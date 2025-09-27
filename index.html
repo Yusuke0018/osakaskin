@@ -506,10 +506,21 @@
         let treatmentGenderChart = null; // 施術詳細の男女比率グラフ用
 
         // 初期化
-        document.addEventListener('DOMContentLoaded', () => {
-            const loadedFromShare = loadSharedDataFromHash();
-            if (!loadedFromShare) {
-                loadStoredData();
+        document.addEventListener('DOMContentLoaded', async () => {
+            let loaded = false;
+            const params = new URLSearchParams(location.search);
+            const sharedId = params.get('id');
+            if (sharedId) {
+                loaded = await loadSharedDataFromWorker(sharedId);
+                if (!loaded) {
+                    alert('共有データの読み込みに失敗しました。URLをご確認ください。');
+                }
+            }
+            if (!loaded) {
+                const loadedFromShare = loadSharedDataFromHash();
+                if (!loadedFromShare) {
+                    loadStoredData();
+                }
             }
             document.getElementById('csvFile').addEventListener('change', handleFileUpload);
             document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
@@ -518,6 +529,13 @@
         });
 
         // 共有リンク機能
+        const DEFAULT_SHARE_SERVICE_ENDPOINT = 'https://osakaskin.youyou00181002.workers.dev/';
+
+        function getShareServiceEndpoint() {
+            const raw = (typeof window !== 'undefined' && window.SHARE_SERVICE_ENDPOINT) ? window.SHARE_SERVICE_ENDPOINT : DEFAULT_SHARE_SERVICE_ENDPOINT;
+            return raw.endsWith('/') ? raw.slice(0, -1) : raw;
+        }
+
         function updateShareButtonState() {
             try {
                 const hasAnyData =
@@ -541,6 +559,13 @@
             };
         }
 
+        function createCompressedPayload() {
+            const payload = collectSharedPayload();
+            const json = JSON.stringify(payload);
+            const compressed = (window.pako && window.pako.deflate) ? window.pako.deflate(json) : new TextEncoder().encode(json);
+            return bytesToBase64(compressed);
+        }
+
         function bytesToBase64(bytes) {
             let binary = '';
             const chunk = 0x8000;
@@ -562,26 +587,41 @@
             return bytes;
         }
 
-        function generateShareLink() {
+        async function generateShareLink() {
+            const btn = document.getElementById('shareBtn');
+            if (btn) btn.disabled = true;
             try {
-                const payload = collectSharedPayload();
-                const json = JSON.stringify(payload);
-                const compressed = (window.pako && window.pako.deflate) ? window.pako.deflate(json) : new TextEncoder().encode(json);
-                const b64 = bytesToBase64(compressed);
-                const base = (location && location.href) ? location.href.split('#')[0] : '';
-                const url = `${base}#s=${b64}`;
+                const b64 = createCompressedPayload();
+                const endpoint = getShareServiceEndpoint();
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ payload: b64 })
+                });
+                if (!response.ok) {
+                    throw new Error(`アップロードに失敗しました: ${response.status}`);
+                }
+                const result = await response.json();
+                if (!result || !result.id) {
+                    throw new Error('共有IDが取得できませんでした');
+                }
+                const shareUrl = `${location.origin}${location.pathname}?id=${result.id}`;
+                let copied = false;
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(url).then(() => {
+                    try {
+                        await navigator.clipboard.writeText(shareUrl);
+                        copied = true;
                         alert('共有リンクをクリップボードにコピーしました');
-                    }).catch(() => {
-                        prompt('このURLをコピーしてください', url);
-                    });
-                } else {
-                    prompt('このURLをコピーしてください', url);
+                    } catch (_) {}
+                }
+                if (!copied) {
+                    prompt('このURLをコピーしてください', shareUrl);
                 }
             } catch (e) {
                 console.error('共有リンク作成エラー:', e);
                 alert('共有リンクの作成に失敗しました');
+            } finally {
+                updateShareButtonState();
             }
         }
 
@@ -590,36 +630,80 @@
                 const hash = location.hash || '';
                 const m = hash.match(/#s=([A-Za-z0-9_\-]+)/);
                 if (!m) return false;
-                const bytes = base64ToBytes(m[1]);
-                const json = (window.pako && window.pako.inflate) ? new TextDecoder().decode(window.pako.inflate(bytes)) : new TextDecoder().decode(bytes);
-                const obj = JSON.parse(json);
-                if (!obj || typeof obj !== 'object') return false;
-                salesData = obj.salesData || {};
-                insuranceData = obj.insuranceData || {};
-                insuranceDiseaseData = obj.insuranceDiseaseData || {};
-                workdayData = obj.workdayData || {};
-                currentMonth = obj.currentMonth || '';
-                currentTab = obj.currentTab || 'selfPay';
-                updateMonthSelector();
-                if (currentMonth) {
-                    document.getElementById('monthSelector').value = currentMonth;
-                }
-                if (currentTab === 'insurance' && currentMonth && insuranceData[currentMonth]) {
-                    switchTab('insurance');
-                    displayInsuranceData();
-                } else if (currentMonth && salesData[currentMonth]) {
-                    switchTab('selfPay');
-                    displayData();
-                } else {
-                    // どちらも該当なしの場合、空表示
-                    document.getElementById('emptyState').classList.remove('hidden');
-                }
-                updateShareButtonState();
-                return true;
+                return hydrateFromCompressedPayload(m[1]);
             } catch (e) {
                 console.warn('共有リンク読み込みに失敗:', e);
                 return false;
             }
+        }
+
+        async function loadSharedDataFromWorker(id) {
+            try {
+                const endpoint = getShareServiceEndpoint();
+                const response = await fetch(`${endpoint}?id=${encodeURIComponent(id)}`);
+                if (!response.ok) {
+                    console.warn('共有IDの取得に失敗しました:', response.status);
+                    return false;
+                }
+                const result = await response.json();
+                if (!result || typeof result.payload !== 'string') {
+                    return false;
+                }
+                return hydrateFromCompressedPayload(result.payload, { persist: true });
+            } catch (e) {
+                console.warn('共有データの取得に失敗:', e);
+                return false;
+            }
+        }
+
+        function hydrateFromCompressedPayload(b64, options = {}) {
+            try {
+                const bytes = base64ToBytes(b64);
+                const inflated = (window.pako && window.pako.inflate) ? window.pako.inflate(bytes) : bytes;
+                const json = new TextDecoder().decode(inflated);
+                const obj = JSON.parse(json);
+                return hydrateSharedData(obj, options);
+            } catch (e) {
+                console.warn('共有データの復元に失敗:', e);
+                return false;
+            }
+        }
+
+        function hydrateSharedData(obj, { persist = false } = {}) {
+            if (!obj || typeof obj !== 'object') return false;
+            salesData = obj.salesData || {};
+            insuranceData = obj.insuranceData || {};
+            insuranceDiseaseData = obj.insuranceDiseaseData || {};
+            workdayData = obj.workdayData || {};
+            currentMonth = obj.currentMonth || '';
+            currentTab = obj.currentTab || 'selfPay';
+
+            if (persist) {
+                try {
+                    localStorage.setItem('salesData', JSON.stringify(salesData));
+                    localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+                    localStorage.setItem('insuranceDiseaseData', JSON.stringify(insuranceDiseaseData));
+                    localStorage.setItem('workdayData', JSON.stringify(workdayData));
+                } catch (_) {}
+            }
+
+            updateMonthSelector();
+            if (currentMonth) {
+                document.getElementById('monthSelector').value = currentMonth;
+            }
+            if (currentTab === 'insurance' && currentMonth && insuranceData[currentMonth]) {
+                switchTab('insurance');
+                displayInsuranceData();
+            } else if (currentMonth && salesData[currentMonth]) {
+                switchTab('selfPay');
+                displayData();
+            } else {
+                document.getElementById('selfPayContent').classList.add('hidden');
+                document.getElementById('insuranceContent').classList.add('hidden');
+                document.getElementById('emptyState').classList.remove('hidden');
+            }
+            updateShareButtonState();
+            return true;
         }
 
         // ユーティリティ
@@ -979,6 +1063,8 @@
                     displayInsuranceData();
                 }
             }
+
+            updateShareButtonState();
         }
 
         // CSVファイルアップロード処理
