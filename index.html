@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
         .fade-in {
             animation: fadeIn 0.3s ease-in;
@@ -59,6 +60,10 @@
                         CSVアップロード
                         <input type="file" id="csvFile" accept=".csv" class="hidden">
                     </label>
+                    <!-- 共有リンク作成 -->
+                    <button id="shareBtn" onclick="generateShareLink()" class="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-center font-medium disabled:opacity-50" disabled>
+                        共有リンク作成
+                    </button>
                 </div>
             </div>
             <!-- タブナビゲーション -->
@@ -502,11 +507,120 @@
 
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
-            loadStoredData();
+            const loadedFromShare = loadSharedDataFromHash();
+            if (!loadedFromShare) {
+                loadStoredData();
+            }
             document.getElementById('csvFile').addEventListener('change', handleFileUpload);
             document.getElementById('monthSelector').addEventListener('change', handleMonthChange);
             document.getElementById('chartPeriod').addEventListener('change', handleChartPeriodChange);
+            updateShareButtonState();
         });
+
+        // 共有リンク機能
+        function updateShareButtonState() {
+            try {
+                const hasAnyData =
+                    Object.keys(salesData || {}).length > 0 ||
+                    Object.keys(insuranceData || {}).length > 0 ||
+                    Object.keys(insuranceDiseaseData || {}).length > 0;
+                const btn = document.getElementById('shareBtn');
+                if (btn) btn.disabled = !hasAnyData;
+            } catch (_) {}
+        }
+
+        function collectSharedPayload() {
+            return {
+                v: 1,
+                salesData,
+                insuranceData,
+                insuranceDiseaseData,
+                workdayData,
+                currentMonth,
+                currentTab
+            };
+        }
+
+        function bytesToBase64(bytes) {
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                const sub = bytes.subarray(i, i + chunk);
+                binary += String.fromCharCode.apply(null, sub);
+            }
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+        }
+
+        function base64ToBytes(b64) {
+            b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad) b64 += '='.repeat(4 - pad);
+            const binary = atob(b64);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+        }
+
+        function generateShareLink() {
+            try {
+                const payload = collectSharedPayload();
+                const json = JSON.stringify(payload);
+                const compressed = (window.pako && window.pako.deflate) ? window.pako.deflate(json) : new TextEncoder().encode(json);
+                const b64 = bytesToBase64(compressed);
+                const base = (location && location.href) ? location.href.split('#')[0] : '';
+                const url = `${base}#s=${b64}`;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(url).then(() => {
+                        alert('共有リンクをクリップボードにコピーしました');
+                    }).catch(() => {
+                        prompt('このURLをコピーしてください', url);
+                    });
+                } else {
+                    prompt('このURLをコピーしてください', url);
+                }
+            } catch (e) {
+                console.error('共有リンク作成エラー:', e);
+                alert('共有リンクの作成に失敗しました');
+            }
+        }
+
+        function loadSharedDataFromHash() {
+            try {
+                const hash = location.hash || '';
+                const m = hash.match(/#s=([A-Za-z0-9_\-]+)/);
+                if (!m) return false;
+                const bytes = base64ToBytes(m[1]);
+                const json = (window.pako && window.pako.inflate) ? new TextDecoder().decode(window.pako.inflate(bytes)) : new TextDecoder().decode(bytes);
+                const obj = JSON.parse(json);
+                if (!obj || typeof obj !== 'object') return false;
+                salesData = obj.salesData || {};
+                insuranceData = obj.insuranceData || {};
+                insuranceDiseaseData = obj.insuranceDiseaseData || {};
+                workdayData = obj.workdayData || {};
+                currentMonth = obj.currentMonth || '';
+                currentTab = obj.currentTab || 'selfPay';
+                updateMonthSelector();
+                if (currentMonth) {
+                    document.getElementById('monthSelector').value = currentMonth;
+                }
+                if (currentTab === 'insurance' && currentMonth && insuranceData[currentMonth]) {
+                    switchTab('insurance');
+                    displayInsuranceData();
+                } else if (currentMonth && salesData[currentMonth]) {
+                    switchTab('selfPay');
+                    displayData();
+                } else {
+                    // どちらも該当なしの場合、空表示
+                    document.getElementById('emptyState').classList.remove('hidden');
+                }
+                updateShareButtonState();
+                return true;
+            } catch (e) {
+                console.warn('共有リンク読み込みに失敗:', e);
+                return false;
+            }
+        }
 
         // ユーティリティ
         const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬'];
@@ -1235,6 +1349,7 @@
             // データ保存
             salesData[formattedMonth] = monthData;
             localStorage.setItem('salesData', JSON.stringify(salesData));
+            updateShareButtonState();
             // 営業日数（売上発生日）抽出と保存
             try {
                 if (Array.isArray(data)) {
@@ -2031,6 +2146,7 @@
 
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+                updateShareButtonState();
 
                 // 営業日数（売上発生日）抽出と保存
                 try {
@@ -3066,6 +3182,7 @@
                 
                 // ローカルストレージに保存
                 localStorage.setItem('insuranceDiseaseData', JSON.stringify(insuranceDiseaseData));
+                updateShareButtonState();
 
                 // 営業日数（開始日ベース）を更新
                 try {
