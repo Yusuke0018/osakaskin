@@ -64,6 +64,10 @@
                     <button id="shareBtn" onclick="generateShareLink()" class="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-center font-medium disabled:opacity-50" disabled>
                         共有リンク作成
                     </button>
+                    <!-- データリセット -->
+                    <button id="resetDataBtn" onclick="resetAllData()" class="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition text-center font-medium">
+                        データリセット
+                    </button>
                 </div>
             </div>
             <!-- タブナビゲーション -->
@@ -623,6 +627,35 @@
             } finally {
                 updateShareButtonState();
             }
+        }
+
+        function resetAllData() {
+            if (!confirm('アップロード済みのデータをすべて削除しますか？')) {
+                return;
+            }
+
+            try {
+                ['salesData', 'insuranceData', 'insuranceDiseaseData', 'workdayData'].forEach(key => {
+                    localStorage.removeItem(key);
+                });
+            } catch (e) {
+                console.warn('リセット処理でローカルストレージ削除に失敗:', e);
+            }
+
+            salesData = {};
+            insuranceData = {};
+            insuranceDiseaseData = {};
+            workdayData = {};
+            currentMonth = '';
+            lastInvalidYearMonth = null;
+
+            updateMonthSelector();
+            const selector = document.getElementById('monthSelector');
+            if (selector) selector.value = '';
+
+            updateShareButtonState();
+            alert('アップロード済みのデータをリセットしました。');
+            location.reload();
         }
 
         function loadSharedDataFromHash() {
