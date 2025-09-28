@@ -721,12 +721,34 @@
             return keys.some(k => text.includes(k));
         }
 
+        let lastInvalidYearMonth = null;
+
         function normalizeHalfWidth(str) {
             if (!str) return '';
             // 全角数字とコロンを半角に寄せる（年月抽出の安定化）
             const z2h = str.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
                            .replace(/：/g, ':');
             return z2h;
+        }
+
+        function buildYearMonth(year, monthRaw) {
+            if (!year || monthRaw === undefined || monthRaw === null) return null;
+            const monthNumber = parseInt(String(monthRaw), 10);
+            if (!Number.isFinite(monthNumber)) {
+                lastInvalidYearMonth = `${year}年${String(monthRaw).padStart(2, '0')}月`;
+                return null;
+            }
+            if (monthNumber < 1 || monthNumber > 12) {
+                lastInvalidYearMonth = `${year}年${String(monthRaw).padStart(2, '0')}月`;
+                return null;
+            }
+            return year + String(monthNumber).padStart(2, '0');
+        }
+
+        function isValidYearMonth(ym) {
+            if (!ym || !/^\d{6}$/.test(ym)) return false;
+            const month = parseInt(ym.slice(4, 6), 10);
+            return month >= 1 && month <= 12;
         }
 
         function extractYearMonthFromName(filename) {
@@ -741,7 +763,10 @@
             ];
             for (const re of patterns) {
                 const m = name.match(re);
-                if (m) return m[1] + m[2];
+                if (m) {
+                    const ym = buildYearMonth(m[1], m[2]);
+                    if (ym) return ym;
+                }
             }
             return null;
         }
@@ -754,14 +779,16 @@
             const reFull = /(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/;
             const m1 = s.match(reFull);
             if (m1) {
-                const yy = m1[1];
-                const mm = String(parseInt(m1[2], 10)).padStart(2, '0');
-                return yy + mm;
+                const ym = buildYearMonth(m1[1], m1[2]);
+                if (ym) return ym;
             }
             // YYYYMMDD
             const reYmd = /(\d{4})(\d{2})(\d{2})/;
             const m2 = s.match(reYmd);
-            if (m2) return m2[1] + m2[2];
+            if (m2) {
+                const ym = buildYearMonth(m2[1], m2[2]);
+                if (ym) return ym;
+            }
             return null;
         }
 
@@ -771,18 +798,39 @@
             const t = normalizeHalfWidth(s.toString().trim());
             // 西暦系
             let m = t.match(/(\d{4})[\/\-.年](\d{1,2})[\/\-.月](\d{1,2})/);
-            if (m) return m[1] + String(parseInt(m[2], 10)).padStart(2, '0');
+            if (m) {
+                const ym = buildYearMonth(m[1], m[2]);
+                if (ym) return ym;
+            }
             m = t.match(/(\d{4})(\d{2})(\d{2})/);
-            if (m) return m[1] + m[2];
+            if (m) {
+                const ym = buildYearMonth(m[1], m[2]);
+                if (ym) return ym;
+            }
             m = t.match(/(\d{4})[\/\-.年](\d{1,2})月?/); // 年月まで
-            if (m) return m[1] + String(parseInt(m[2], 10)).padStart(2, '0');
+            if (m) {
+                const ym = buildYearMonth(m[1], m[2]);
+                if (ym) return ym;
+            }
             // 和暦系
             let mt = t.match(/令和\s*(\d+)年\s*(\d{1,2})月/);
-            if (mt) return String(2018 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            if (mt) {
+                const year = String(2018 + parseInt(mt[1], 10));
+                const ym = buildYearMonth(year, mt[2]);
+                if (ym) return ym;
+            }
             mt = t.match(/平成\s*(\d+)年\s*(\d{1,2})月/);
-            if (mt) return String(1988 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            if (mt) {
+                const year = String(1988 + parseInt(mt[1], 10));
+                const ym = buildYearMonth(year, mt[2]);
+                if (ym) return ym;
+            }
             mt = t.match(/昭和\s*(\d+)年\s*(\d{1,2})月/);
-            if (mt) return String(1925 + parseInt(mt[1], 10)) + String(parseInt(mt[2], 10)).padStart(2, '0');
+            if (mt) {
+                const year = String(1925 + parseInt(mt[1], 10));
+                const ym = buildYearMonth(year, mt[2]);
+                if (ym) return ym;
+            }
             return null;
         }
 
@@ -1104,13 +1152,14 @@
         function processCSVData(data, filename) {
             console.log('Processing CSV data...');
             console.log('Original filename:', filename);
-            
+
             // ファイルタイプの判定（ファイル名による判定）
             const isDiseaseData = includesAny(filename, DISEASE_FILE_KEYWORDS);
             const isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData;
             console.log('File type - Insurance:', isInsurance, 'Disease:', isDiseaseData);
-            
+
             // ファイル名から年月を抽出
+            lastInvalidYearMonth = null;
             let yearMonth = null;
             let formattedMonth = null;
             
@@ -1146,22 +1195,35 @@
                 // パターン1: 202506-202506 形式
                 const monthMatch1 = filename.match(/(\d{6})-\d{6}/);
                 if (monthMatch1) {
-                    yearMonth = monthMatch1[1];
-                } else {
-                    // パターン2: 20250701-20250731 形式
+                    const candidate = monthMatch1[1];
+                    const ym = buildYearMonth(candidate.slice(0, 4), candidate.slice(4, 6));
+                    if (ym) {
+                        yearMonth = ym;
+                    }
+                }
+                // パターン2: 20250701-20250731 形式
+                if (!yearMonth) {
                     const monthMatch2 = filename.match(/(\d{6})\d{2}/);
                     if (monthMatch2) {
-                        yearMonth = monthMatch2[1];
+                        const candidate = monthMatch2[1];
+                        const ym = buildYearMonth(candidate.slice(0, 4), candidate.slice(4, 6));
+                        if (ym) {
+                            yearMonth = ym;
+                        }
                     }
-                    if (!yearMonth) {
-                        // より柔軟に YYYY-MM / YYYY_MM / YYYY.MM / YYYY年MM月
-                        const ym = extractYearMonthFromName(filename);
-                        if (ym) yearMonth = ym;
-                    }
+                }
+                if (!yearMonth) {
+                    // より柔軟に YYYY-MM / YYYY_MM / YYYY.MM / YYYY年MM月
+                    const ym = extractYearMonthFromName(filename);
+                    if (ym) yearMonth = ym;
                 }
             }
             
             if (!yearMonth) {
+                if (lastInvalidYearMonth) {
+                    alert(`日時情報に不正な月が含まれているため読み込めませんでした。\n問題の値: ${lastInvalidYearMonth}\nファイル名: ${filename}`);
+                    return;
+                }
                 let expectedFormat = '';
                 if (isDiseaseData) {
                     expectedFormat = 'データ検索・抽出_YYYY:MM.csv（例：データ検索・抽出_2025:06.csv）';
@@ -1173,9 +1235,15 @@
                 alert(`ファイル名から年月を特定できませんでした。\n期待される形式: ${expectedFormat}\n読み込んだファイル名: ${filename}`);
                 return;
             }
-            
+
+            if (!isValidYearMonth(yearMonth)) {
+                const invalidMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
+                alert(`日時情報に不正な月が含まれているため読み込めませんでした。\n問題の値: ${invalidMonth}\nファイル名: ${filename}`);
+                return;
+            }
+
             formattedMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
-            
+
             // 傷病名データの場合
             if (isDiseaseData) {
                 processDiseaseData(data, formattedMonth);
