@@ -1533,28 +1533,35 @@
                 if (ym) yearMonth = ym;
             } else {
                 // 自費ファイルの場合
-                // パターン1: 20250604-20250604 形式（8桁） または 202506-202506 形式（6桁）
-                const dateRangeMatch = filename.match(/(\d{8})-\d{8}|(\d{6})-\d{6}/);
-                if (dateRangeMatch) {
-                    const dateStr = dateRangeMatch[1] || dateRangeMatch[2];
-                    console.log(`日付範囲を検出: ${dateStr} (${dateStr.length}桁)`);
+                // パターン1: 20250604-20250604 形式（8桁）
+                const dateRangeMatch8 = filename.match(/(\d{8})-\d{8}/);
+                if (dateRangeMatch8) {
+                    const dateStr = dateRangeMatch8[1];
+                    console.log(`8桁の日付範囲を検出: ${dateStr}`);
                     
-                    if (dateStr.length === 8) {
-                        // 8桁の日付形式: YYYYMMDD
-                        const year = dateStr.slice(0, 4);
-                        const month = dateStr.slice(4, 6);
-                        const day = dateStr.slice(6, 8);
-                        console.log(`8桁解析: 年=${year}, 月=${month}, 日=${day}`);
-                        
-                        const yearNum = parseInt(year, 10);
-                        if (yearNum >= 2020 && yearNum <= 2030) {
-                            const ym = buildYearMonth(year, month);
-                            if (ym) {
-                                yearMonth = ym;
-                                console.log(`8桁日付から抽出成功: ${year}年${month}月`);
-                            }
+                    // 8桁の日付形式: YYYYMMDD
+                    const year = dateStr.slice(0, 4);
+                    const month = dateStr.slice(4, 6);
+                    const day = dateStr.slice(6, 8);
+                    console.log(`8桁解析: 年=${year}, 月=${month}, 日=${day}`);
+                    
+                    const yearNum = parseInt(year, 10);
+                    if (yearNum >= 2020 && yearNum <= 2030) {
+                        const ym = buildYearMonth(year, month);
+                        if (ym) {
+                            yearMonth = ym;
+                            console.log(`8桁日付から抽出成功: ${year}年${month}月`);
                         }
-                    } else if (dateStr.length === 6) {
+                    }
+                }
+                
+                // パターン2: 202506-202506 形式（6桁）
+                if (!yearMonth) {
+                    const dateRangeMatch6 = filename.match(/(\d{6})-\d{6}/);
+                    if (dateRangeMatch6) {
+                        const dateStr = dateRangeMatch6[1];
+                        console.log(`6桁の日付範囲を検出: ${dateStr}`);
+                        
                         // 6桁の日付形式: YYYYMM
                         const year = dateStr.slice(0, 4);
                         const month = dateStr.slice(4, 6);
