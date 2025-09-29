@@ -1,0 +1,9 @@
+timestamp: 2025-09-29T15:54:42+09:00
+branch: main
+latest_commit: 9ba886d
+diff_stat:
+M	index.html
+tests: not run (no test suite defined)
+format: not run (no formatter configured)
+notes: enforce year range 2025-2100 when uploading CSV
+--- end pre-push log ---

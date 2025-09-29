@@ -742,6 +742,8 @@
         }
 
         // ユーティリティ
+        const MIN_SUPPORTED_YEAR = 2025;
+        const MAX_SUPPORTED_YEAR = 2100;
         const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬'];
         const DISEASE_FILE_KEYWORDS = ['データ検索', '抽出', '傷病名', '病名', '診断名'];
         const SUM_KEYWORDS = ['合計', '総合計', '総計'];
@@ -754,6 +756,10 @@
 
         function includesAny(text, keys) {
             return keys.some(k => text.includes(k));
+        }
+
+        function isYearWithinSupportedRange(yearNumber) {
+            return Number.isFinite(yearNumber) && yearNumber >= MIN_SUPPORTED_YEAR && yearNumber <= MAX_SUPPORTED_YEAR;
         }
 
         let lastInvalidYearMonth = null;
@@ -1274,6 +1280,13 @@
             if (!isValidYearMonth(yearMonth)) {
                 const invalidMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
                 alert(`日時情報に不正な月が含まれているため読み込めませんでした。\n問題の値: ${invalidMonth}\nファイル名: ${filename}`);
+                return;
+            }
+
+            const detectedYear = parseInt(yearMonth.slice(0, 4), 10);
+            if (!isYearWithinSupportedRange(detectedYear)) {
+                const invalidTarget = `${detectedYear}年${yearMonth.slice(4, 6)}月`;
+                alert(`2025年〜2100年のデータのみ読み込み対象です。\n検出された年月: ${invalidTarget}\nファイル名: ${filename}`);
                 return;
             }
 
