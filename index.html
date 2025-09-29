@@ -2312,7 +2312,19 @@
 
           const data = salesData[currentMonth];
 
-          function renderWeekdaySummary(data) {
+          displaySummary(data);
+          renderWeekdaySummary(data);
+          renderWeekdayTreatmentShare(data);
+          displayTreatmentRanking(data.treatments);
+          displayProductSummary(data.products);
+          displayGenderRatio(data.gender);
+
+          if (Object.keys(salesData).length > 0) {
+              updateChart();
+          }
+      }
+
+      function renderWeekdaySummary(data) {
           const tbody = document.getElementById('weekdaySummaryBody');
           const emptyMsg = document.getElementById('weekdaySummaryEmpty');
           const wrapper = document.getElementById('weekdaySummaryTableWrapper');
@@ -2481,26 +2493,6 @@
           } else {
               emptyMsg.classList.add('hidden');
               container.innerHTML = cards.join('');
-          }
-      }
-
-      // 総売上サマリー表示
-          displaySummary(data);
-          renderWeekdaySummary(data);
-          renderWeekdayTreatmentShare(data);
-
-          // 施術ランキング表示
-          displayTreatmentRanking(data.treatments);
-
-          // 物品サマリー表示
-          displayProductSummary(data.products);
-
-          // 男女比率表示（データがある場合）
-          displayGenderRatio(data.gender);
-
-          // グラフ更新（複数月のデータがある場合）
-          if (Object.keys(salesData).length > 0) {
-              updateChart();
           }
       }
 
