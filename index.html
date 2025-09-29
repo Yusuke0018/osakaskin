@@ -811,7 +811,8 @@
         // ユーティリティ
         const MIN_SUPPORTED_YEAR = 2025;
         const MAX_SUPPORTED_YEAR = 2100;
-        const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬', '診療費', 'shinryouhi', 'gekkei'];
+        const WEEKDAY_FILE_KEYWORDS = ['gekkei', '月計', '月計表', '01gekkei'];
+        const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬', '診療費', 'shinryouhi'];
         const DISEASE_FILE_KEYWORDS = ['データ検索', '抽出', '傷病名', '病名', '診断名'];
         const SUM_KEYWORDS = ['合計', '総合計', '総計'];
         const REVENUE_KEYWORDS = ['医療収益', '診療収益', '収益', '売上', '金額'];
@@ -1555,10 +1556,11 @@
 
             // ファイルタイプの判定（ファイル名による判定）
             const isDiseaseData = includesAny(filename, DISEASE_FILE_KEYWORDS);
-            let isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData;
-            console.log('File type - Insurance:', isInsurance, 'Disease:', isDiseaseData);
+            const isWeekdayData = includesAny(filename, WEEKDAY_FILE_KEYWORDS) && !isDiseaseData;
+            let isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData && !isWeekdayData;
+            console.log('File type - Weekday:', isWeekdayData, 'Insurance:', isInsurance, 'Disease:', isDiseaseData);
 
-            if (!isDiseaseData && !isInsurance) {
+            if (!isDiseaseData && !isInsurance && !isWeekdayData) {
                 if (looksLikeInsuranceData(data)) {
                     console.log('Detected insurance data from content');
                     isInsurance = true;
@@ -1687,8 +1689,14 @@
                 processDiseaseData(data, formattedMonth);
                 return;
             }
-            
-            // 保険データの場合は別処理
+
+            // 曜日データ（月次統計）の場合
+            if (isWeekdayData) {
+                processWeekdayData(data, formattedMonth);
+                return;
+            }
+
+            // 保険データ（サマリー）の場合は別処理
             if (isInsurance) {
                 processInsuranceData(data, formattedMonth);
                 return;
@@ -3234,6 +3242,146 @@
             alert(`${formattedMonth}の日別自費データを読み込みました (${dailyInfo.displayDate})`);
         }
 
+        // 曜日データ（月次統計）処理専用関数
+        function processWeekdayData(data, formattedMonth) {
+            console.log('Processing weekday data for:', formattedMonth);
+            try {
+                // 行配列にパース
+                let rows;
+                if (typeof data === 'string') {
+                    const parsed = (typeof Papa !== 'undefined') ? Papa.parse(data, { skipEmptyLines: true }) : { data: data.split('\n').map(l => l.split(',')) };
+                    rows = parsed.data;
+                } else if (Array.isArray(data)) {
+                    rows = data;
+                } else {
+                    rows = [];
+                }
+
+                // 正規化（トリム）
+                rows = rows.map(r => r.map(c => (c || '').toString().trim()));
+
+                // 曜日別集計データ構造を初期化
+                const weekdaySummary = {};
+                WEEKDAY_DISPLAY_ORDER.forEach(key => {
+                    const labelInfo = WEEKDAY_LABELS[key] || { short: key, full: key };
+                    weekdaySummary[key] = {
+                        label: labelInfo.short,
+                        fullLabel: labelInfo.full,
+                        dayCount: 0,
+                        totalVisits: 0,
+                        firstVisitCount: 0,
+                        returnVisitCount: 0,
+                        insurancePoints: 0,
+                        dayNumbers: []
+                    };
+                });
+
+                // ヘッダー検出
+                const hasMetaHeader = rows.length > 0 && rows[0].some(c => /入外区分|対象年月|診療科/.test(c));
+                let headerIdx = -1;
+                let dayCol = 0;
+                let totalPatientColIndex = -1;
+                let firstVisitColIndex = -1;
+                let returnVisitColIndex = -1;
+                let pointsCol = -1;
+
+                const headerTokens = ['保険点数', '医療収益', '総計額', '社保', '国保', '後期高齢', '公費', '窓口請求金額', '窓口領収金額'];
+                const startIdx = hasMetaHeader ? 1 : 0;
+
+                for (let i = startIdx; i < Math.min(rows.length, startIdx + 10); i++) {
+                    const r = rows[i];
+                    if (!r || r.length < 2) continue;
+                    if (r.some(c => headerTokens.some(t => c.includes(t)))) {
+                        headerIdx = i;
+                        const dayCandidate = r.findIndex(c => /^日$/.test(c));
+                        dayCol = dayCandidate >= 0 ? dayCandidate : 0;
+                        totalPatientColIndex = r.findIndex(c => includesAny(c, ['受診者', '患者数', '来院者', '実人数']));
+                        if (totalPatientColIndex < 0 && r.length > 1) totalPatientColIndex = 1;
+                        firstVisitColIndex = r.findIndex(c => includesAny(c, FIRST_VISIT_KEYWORDS));
+                        if (firstVisitColIndex < 0 && r.length > 2) firstVisitColIndex = 2;
+                        returnVisitColIndex = r.findIndex(c => includesAny(c, RETURN_VISIT_KEYWORDS));
+                        if (returnVisitColIndex < 0 && r.length > 3) returnVisitColIndex = 3;
+                        pointsCol = r.findIndex(c => includesAny(c, POINTS_KEYWORDS));
+                        break;
+                    }
+                }
+
+                function parseIntSafe(str) {
+                    const n = parseInt((str || '').toString().replace(/[^\d-]/g, ''));
+                    return isNaN(n) ? 0 : n;
+                }
+
+                // 日別データを曜日別に集計
+                for (let i = (headerIdx >= 0 ? headerIdx + 1 : startIdx); i < rows.length; i++) {
+                    const r = rows[i];
+                    if (!r || r.length === 0) continue;
+
+                    const rawDayCell = (dayCol >= 0 ? r[dayCol] : r[0]) || '';
+                    const dayMatch = rawDayCell.match(/(\d{1,2})/);
+                    if (dayMatch) {
+                        const dayNumber = parseInt(dayMatch[1], 10);
+                        if (!Number.isNaN(dayNumber) && dayNumber >= 1 && dayNumber <= 31) {
+                            const { y, m } = parseFormattedYearMonth(formattedMonth);
+                            const jsDate = new Date(y, m - 1, dayNumber);
+                            if (!Number.isNaN(jsDate.getTime())) {
+                                const jsIndex = jsDate.getDay();
+                                const wKey = WEEKDAY_KEY_FROM_JSINDEX[jsIndex] || null;
+                                if (wKey && weekdaySummary[wKey]) {
+                                    const totalVisits = parseIntSafe(r[totalPatientColIndex] || r[1]);
+                                    const firstVisits = parseIntSafe(r[firstVisitColIndex] || r[2]);
+                                    const returnVisits = parseIntSafe(r[returnVisitColIndex] || r[3]);
+                                    const pts = pointsCol >= 0 ? parseIntSafe(r[pointsCol]) : 0;
+
+                                    if (totalVisits > 0) {
+                                        weekdaySummary[wKey].dayCount++;
+                                        weekdaySummary[wKey].totalVisits += totalVisits;
+                                        weekdaySummary[wKey].firstVisitCount += firstVisits;
+                                        weekdaySummary[wKey].returnVisitCount += returnVisits;
+                                        weekdaySummary[wKey].insurancePoints += pts;
+                                        weekdaySummary[wKey].dayNumbers.push(dayNumber);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 営業日数計算
+                let businessDays = 0;
+                WEEKDAY_DISPLAY_ORDER.forEach(key => {
+                    businessDays += weekdaySummary[key].dayCount;
+                });
+
+                // 既存の保険データを取得（上書きしない）
+                if (!insuranceData[formattedMonth]) {
+                    insuranceData[formattedMonth] = {
+                        medicalRevenue: 0,
+                        firstVisitCount: 0,
+                        returnVisitCount: 0,
+                        newPatientCount: 0,
+                        totalPatientCount: 0
+                    };
+                }
+
+                // 曜日データのみ追加
+                insuranceData[formattedMonth].weekdaySummary = weekdaySummary;
+                insuranceData[formattedMonth].businessDays = businessDays;
+
+                localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+                console.log('Weekday data saved for:', formattedMonth);
+
+                currentMonth = formattedMonth;
+                updateMonthSelector();
+                document.getElementById('monthSelector').value = currentMonth;
+                switchTab('insurance');
+
+                alert(`${formattedMonth}の曜日データを読み込みました（営業日数: ${businessDays}日）`);
+            } catch (error) {
+                console.error('Weekday data processing error:', error);
+                alert(`曜日データの処理中にエラーが発生しました: ${error.message}`);
+            }
+        }
+
         // 保険データ処理（名称多様化＆堅牢化）
         function processInsuranceData(data, formattedMonth) {
             console.log('Processing insurance data for:', formattedMonth);
@@ -3252,29 +3400,14 @@
                 // 正規化（トリム）
                 rows = rows.map(r => r.map(c => (c || '').toString().trim()));
 
-                // 保険データ構造
-                let monthData = {
+                // 既存データを取得または新規作成（曜日データは保持）
+                let monthData = insuranceData[formattedMonth] || {
                     medicalRevenue: 0,
                     firstVisitCount: 0,
                     returnVisitCount: 0,
                     newPatientCount: 0,
                     totalPatientCount: 0
                 };
-
-                const weekdaySummary = {};
-                WEEKDAY_DISPLAY_ORDER.forEach(key => {
-                    const labelInfo = WEEKDAY_LABELS[key] || { short: key, full: key };
-                    weekdaySummary[key] = {
-                        label: labelInfo.short,
-                        fullLabel: labelInfo.full,
-                        dayCount: 0,
-                        totalVisits: 0,
-                        firstVisitCount: 0,
-                        returnVisitCount: 0,
-                        insurancePoints: 0,
-                        dayNumbers: []
-                    };
-                });
 
                 // ヘッダー検出（メタ行スキップ）
                 let headerIdx = -1;
@@ -3416,105 +3549,16 @@
                         if (v && v < 1000000) monthData.totalPatientCount = v;
                         continue;
                     }
-
-                    // 日別データを曜日別に集計
-                    const rawDayCell = (dayCol >= 0 ? r[dayCol] : r[0]) || '';
-                    const dayMatch = rawDayCell.match(/(\d{1,2})/);
-                    if (dayMatch) {
-                        const dayNumber = parseInt(dayMatch[1], 10);
-                        if (!Number.isNaN(dayNumber) && dayNumber >= 1 && dayNumber <= 31) {
-                            const { y, m } = parseFormattedYearMonth(formattedMonth);
-                            const jsDate = new Date(y, m - 1, dayNumber);
-                            if (!Number.isNaN(jsDate.getTime())) {
-                                const jsIndex = jsDate.getDay();
-                                const weekdayKey = WEEKDAY_KEY_FROM_JSINDEX[jsIndex];
-                                const summary = weekdaySummary[weekdayKey];
-                                if (summary) {
-                                    const firstVal = firstVisitColIndex >= 0 ? parseIntSafe(r[firstVisitColIndex]) : 0;
-                                    const returnVal = returnVisitColIndex >= 0 ? parseIntSafe(r[returnVisitColIndex]) : 0;
-                                    const otherVal = otherVisitColIndex >= 0 ? parseIntSafe(r[otherVisitColIndex]) : 0;
-                                    let totalVisits = totalPatientColIndex >= 0 ? parseIntSafe(r[totalPatientColIndex]) : 0;
-                                    if (!totalVisits && (firstVal || returnVal || otherVal)) {
-                                        totalVisits = firstVal + returnVal + otherVal;
-                                    }
-                                    const pointsVal = pointsCol >= 0 ? parseIntSafe(r[pointsCol]) : 0;
-
-                                    // 受診者数が0の日は営業日とみなさない
-                                    if (totalVisits > 0) {
-                                        summary.dayCount += 1;
-                                        summary.dayNumbers.push(dayNumber);
-                                        summary.totalVisits += totalVisits;
-                                        summary.firstVisitCount += firstVal;
-                                        summary.returnVisitCount += returnVal;
-                                        summary.insurancePoints += pointsVal;
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
-
-                const uniqueBusinessDays = new Set();
-                Object.values(weekdaySummary).forEach(info => {
-                    (info.dayNumbers || []).forEach(day => {
-                        if (Number.isFinite(day)) uniqueBusinessDays.add(day);
-                    });
-                });
 
                 const hasValidData = monthData.medicalRevenue > 0 || monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0 || monthData.newPatientCount > 0 || monthData.totalPatientCount > 0;
                 if (!hasValidData) {
                     console.warn('警告: 保険データの主要項目が抽出できませんでした。ファイル名やラベルのバリエーションをご確認ください。');
                 }
 
-                monthData.weekdaySummary = weekdaySummary;
+                // 保険サマリーデータを保存（曜日データは上書きしない）
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
-
-                // 営業日数（売上発生日）抽出と保存
-                try {
-                    if (Array.isArray(rows)) {
-                        updateWorkdayFromRows(rows, formattedMonth);
-                    }
-                } catch (e) {
-                    console.warn('営業日数抽出（保険）でエラー:', e);
-                }
-
-                const combinedBusinessDays = new Map();
-                const existingWd = workdayData[formattedMonth];
-                if (existingWd && Array.isArray(existingWd.saleDays)) {
-                    existingWd.saleDays.forEach(day => {
-                        if (Number.isFinite(day)) combinedBusinessDays.set(day, true);
-                    });
-                }
-                uniqueBusinessDays.forEach(day => {
-                    if (Number.isFinite(day)) combinedBusinessDays.set(day, true);
-                });
-
-                if (combinedBusinessDays.size > 0) {
-                    const sortedDays = Array.from(combinedBusinessDays.keys()).sort((a, b) => a - b);
-                    const weekdayCounts = WEEKDAY_DISPLAY_ORDER.reduce((acc, key) => {
-                        acc[key] = 0;
-                        return acc;
-                    }, {});
-                    sortedDays.forEach(day => {
-                        const { y, m } = parseFormattedYearMonth(formattedMonth);
-                        const date = new Date(y, m - 1, day);
-                        if (!Number.isNaN(date.getTime())) {
-                            const key = WEEKDAY_KEY_FROM_JSINDEX[date.getDay()];
-                            if (weekdayCounts[key] !== undefined) {
-                                weekdayCounts[key] += 1;
-                            }
-                        }
-                    });
-                    workdayData[formattedMonth] = {
-                        saleDays: sortedDays,
-                        saleDaysCount: sortedDays.length,
-                        weekdaysCount: sortedDays.length,
-                        method: '受診日数',
-                        weekdayCounts
-                    };
-                }
-                localStorage.setItem('workdayData', JSON.stringify(workdayData));
                 updateShareButtonState();
 
                 currentMonth = formattedMonth;
