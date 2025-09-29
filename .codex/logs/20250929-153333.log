@@ -1,0 +1,15 @@
+timestamp: 2025-09-29T15:33:33 JST
+branch: main
+head: 98232616bd55ee248b3d29058bb761acc3eae213
+diff_summary:
+  - index.html (:+13 / :-21)
+formatting:
+  - npx --yes prettier --write index.html (unchanged)
+checks:
+  - npx --yes prettier --check index.html (pass)
+tests:
+  - なし（フロントエンド静的ファイルのため）
+notes:
+  - displayData で曜日別描画関数を呼ぶよう修正し、関数定義を外だし
+  - 画面ロード時の曜日別セクション描画が機能することを確認
+  - 共有リンク機能を維持したまま日次集計が働くよう整理
