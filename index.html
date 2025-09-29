@@ -2519,6 +2519,13 @@
                     }
                 }
 
+                const uniqueBusinessDays = new Set();
+                Object.values(weekdaySummary).forEach(info => {
+                    (info.dayNumbers || []).forEach(day => {
+                        if (Number.isFinite(day)) uniqueBusinessDays.add(day);
+                    });
+                });
+
                 const hasValidData = monthData.medicalRevenue > 0 || monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0 || monthData.newPatientCount > 0 || monthData.totalPatientCount > 0;
                 if (!hasValidData) {
                     console.warn('警告: 保険データの主要項目が抽出できませんでした。ファイル名やラベルのバリエーションをご確認ください。');
@@ -2527,7 +2534,6 @@
                 monthData.weekdaySummary = weekdaySummary;
                 insuranceData[formattedMonth] = monthData;
                 localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
-                updateShareButtonState();
 
                 // 営業日数（売上発生日）抽出と保存
                 try {
@@ -2537,6 +2543,25 @@
                 } catch (e) {
                     console.warn('営業日数抽出（保険）でエラー:', e);
                 }
+
+                const combinedBusinessDays = new Set(uniqueBusinessDays);
+                const existingWd = workdayData[formattedMonth];
+                if (existingWd && Array.isArray(existingWd.saleDays)) {
+                    existingWd.saleDays.forEach(day => {
+                        if (Number.isFinite(day)) combinedBusinessDays.add(day);
+                    });
+                }
+                if (combinedBusinessDays.size > 0) {
+                    const sortedDays = Array.from(combinedBusinessDays).sort((a, b) => a - b);
+                    workdayData[formattedMonth] = {
+                        saleDays: sortedDays,
+                        saleDaysCount: sortedDays.length,
+                        weekdaysCount: sortedDays.length,
+                        method: '受診日数'
+                    };
+                }
+                localStorage.setItem('workdayData', JSON.stringify(workdayData));
+                updateShareButtonState();
 
                 currentMonth = formattedMonth;
                 updateMonthSelector();
@@ -2606,7 +2631,7 @@
                     if (valueEl) {
                         if (wd && wd.saleDaysCount > 0) {
                             valueEl.textContent = wd.saleDaysCount + '日';
-                            if (methodEl) methodEl.textContent = '開始日件数';
+                            if (methodEl) methodEl.textContent = wd.method || '開始日件数';
                         } else {
                             const { y, m } = parseFormattedYearMonth(currentMonth);
                             const weekdays = countWeekdaysInMonth(y, m, false);
