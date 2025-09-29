@@ -98,14 +98,8 @@
             <label
               class="px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition text-center font-medium"
             >
-              CSVアップロード（複数可）
-              <input
-                type="file"
-                id="csvFile"
-                accept=".csv"
-                class="hidden"
-                multiple
-              />
+              CSVアップロード
+              <input type="file" id="csvFile" accept=".csv" class="hidden" />
             </label>
             <!-- 共有リンク作成 -->
             <button
@@ -2044,64 +2038,36 @@
       }
 
       // CSVファイルアップロード処理
-      async function handleFileUpload(event) {
-          const input = event.target;
-          const files = Array.from(input.files || []);
-          if (files.length === 0) return;
+      function handleFileUpload(event) {
+          const file = event.target.files[0];
+          if (!file) return;
 
-          for (const file of files) {
-              try {
-                  await processUploadedFile(file);
-              } catch (error) {
-                  console.error('ファイル読み込みエラー:', error);
-                  const detail = error && error.message ? `\n詳細: ${error.message}` : '';
-                  alert(`ファイルの読み込み中にエラーが発生しました: ${file.name}${detail}`);
-              }
+          console.log('Uploaded file name:', file.name);
+          const fname = file.name;
+          // 保険/傷病名ファイルは Shift-JIS 読み（名称多様化対応）
+          const isInsuranceLike = includesAny(fname, INSURANCE_FILE_KEYWORDS);
+          const isDiseaseLike = includesAny(fname, DISEASE_FILE_KEYWORDS);
+          if (isInsuranceLike || isDiseaseLike) {
+              console.log('Processing as Shift-JIS file');
+              const reader = new FileReader();
+              reader.onload = function(e) {
+                  const text = e.target.result;
+                  processCSVData(text, fname);
+              };
+              // Shift-JISで読み込み
+              reader.readAsText(file, 'Shift-JIS');
+          } else {
+              // 自費ファイルは通常通りPapaParseで処理
+              Papa.parse(file, {
+                  encoding: 'UTF-8',
+                  complete: function(results) {
+                      processCSVData(results.data, fname);
+                  },
+                  error: function(error) {
+                      alert('CSVファイルの読み込みに失敗しました: ' + error.message);
+                  }
+              });
           }
-
-          input.value = '';
-      }
-
-      function processUploadedFile(file) {
-          return new Promise((resolve, reject) => {
-              console.log('Uploaded file name:', file.name);
-              const fname = file.name;
-              const isInsuranceLike = includesAny(fname, INSURANCE_FILE_KEYWORDS);
-              const isDiseaseLike = includesAny(fname, DISEASE_FILE_KEYWORDS);
-
-              if (isInsuranceLike || isDiseaseLike) {
-                  console.log('Processing as Shift-JIS file');
-                  const reader = new FileReader();
-                  reader.onload = function(e) {
-                      try {
-                          const text = e.target.result;
-                          processCSVData(text, fname);
-                          resolve();
-                      } catch (err) {
-                          reject(err);
-                      }
-                  };
-                  reader.onerror = function() {
-                      reject(new Error('Shift-JISファイルの読み込みに失敗しました'));
-                  };
-                  reader.readAsText(file, 'Shift-JIS');
-              } else {
-                  Papa.parse(file, {
-                      encoding: 'UTF-8',
-                      complete: function(results) {
-                          try {
-                              processCSVData(results.data, fname);
-                              resolve();
-                          } catch (err) {
-                              reject(err);
-                          }
-                      },
-                      error: function(error) {
-                          reject(new Error('CSVファイルの読み込みに失敗しました: ' + error.message));
-                      }
-                  });
-              }
-          });
       }
 
       // CSVデータ処理
