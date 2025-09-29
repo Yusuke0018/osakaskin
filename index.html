@@ -2544,20 +2544,39 @@
                     console.warn('営業日数抽出（保険）でエラー:', e);
                 }
 
-                const combinedBusinessDays = new Set(uniqueBusinessDays);
+                const combinedBusinessDays = new Map();
                 const existingWd = workdayData[formattedMonth];
                 if (existingWd && Array.isArray(existingWd.saleDays)) {
                     existingWd.saleDays.forEach(day => {
-                        if (Number.isFinite(day)) combinedBusinessDays.add(day);
+                        if (Number.isFinite(day)) combinedBusinessDays.set(day, true);
                     });
                 }
+                uniqueBusinessDays.forEach(day => {
+                    if (Number.isFinite(day)) combinedBusinessDays.set(day, true);
+                });
+
                 if (combinedBusinessDays.size > 0) {
-                    const sortedDays = Array.from(combinedBusinessDays).sort((a, b) => a - b);
+                    const sortedDays = Array.from(combinedBusinessDays.keys()).sort((a, b) => a - b);
+                    const weekdayCounts = WEEKDAY_DISPLAY_ORDER.reduce((acc, key) => {
+                        acc[key] = 0;
+                        return acc;
+                    }, {});
+                    sortedDays.forEach(day => {
+                        const { y, m } = parseFormattedYearMonth(formattedMonth);
+                        const date = new Date(y, m - 1, day);
+                        if (!Number.isNaN(date.getTime())) {
+                            const key = WEEKDAY_KEY_FROM_JSINDEX[date.getDay()];
+                            if (weekdayCounts[key] !== undefined) {
+                                weekdayCounts[key] += 1;
+                            }
+                        }
+                    });
                     workdayData[formattedMonth] = {
                         saleDays: sortedDays,
                         saleDaysCount: sortedDays.length,
                         weekdaysCount: sortedDays.length,
-                        method: '受診日数'
+                        method: '受診日数',
+                        weekdayCounts
                     };
                 }
                 localStorage.setItem('workdayData', JSON.stringify(workdayData));
@@ -3307,6 +3326,12 @@
                 const firstAvg = info.dayCount > 0 ? Math.round(firstCount / info.dayCount) : null;
                 const returnAvg = info.dayCount > 0 ? Math.round(returnCount / info.dayCount) : null;
 
+                const wd = workdayData[month];
+                let weekdayCountText = `${info.dayCount}日分`;
+                if (wd && wd.weekdayCounts && Number.isFinite(wd.weekdayCounts[key]) && wd.weekdayCounts[key] > 0) {
+                    weekdayCountText = `${wd.weekdayCounts[key]}日（営業）`;
+                }
+
                 let prevFirst = null;
                 let prevReturn = null;
                 let prevRatio = null;
@@ -3340,7 +3365,7 @@
                     <tr class="border-b last:border-0">
                         <td class="py-3 pr-3 align-middle">
                             <div class="font-semibold text-gray-700">${labelInfo.full || labelInfo.short}</div>
-                            <div class="text-xs text-gray-400">${info.dayCount}日分</div>
+                            <div class="text-xs text-gray-400">${weekdayCountText}</div>
                         </td>
                         <td class="py-3 pr-3 text-right align-middle">
                             <div class="font-semibold text-gray-800">${firstAvg !== null ? `${firstAvg.toLocaleString()}件` : '-'}</div>
