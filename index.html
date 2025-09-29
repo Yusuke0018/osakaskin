@@ -470,6 +470,7 @@
                         <thead>
                             <tr class="border-b text-xs uppercase tracking-wider text-gray-500">
                                 <th class="text-left py-2">曜日</th>
+                                <th class="text-right py-2">営業日数</th>
                                 <th class="text-right py-2">初診平均</th>
                                 <th class="text-right py-2">再診平均</th>
                                 <th class="text-right py-2">初診割合</th>
@@ -478,6 +479,12 @@
                         </thead>
                         <tbody id="insuranceWeekdayTableBody"></tbody>
                     </table>
+                </div>
+                <!-- 曜日別グラフ -->
+                <div id="insuranceWeekdayChartWrapper" class="mt-6 hidden">
+                    <div class="relative h-72">
+                        <canvas id="insuranceWeekdayChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -576,6 +583,7 @@
         let genderChart = null; // 男女比率グラフ用
         let treatmentGenderChart = null; // 施術詳細の男女比率グラフ用
         let selfPayWeekdayChart = null; // 自費曜日別グラフ
+        let insuranceWeekdayChart = null; // 保険曜日別グラフ
         let selfPayWeekdayDetailsCollapsed = true; // 曜日別詳細の折りたたみ状態
 
         // 初期化
@@ -4391,13 +4399,168 @@
             });
 
             if (rows.length === 0) {
-                tbody.innerHTML = '<tr><td class="py-4 text-center text-gray-500" colspan="5">曜日別の集計データがありません</td></tr>';
+                tbody.innerHTML = '<tr><td class="py-4 text-center text-gray-500" colspan="6">曜日別の集計データがありません</td></tr>';
                 section.classList.remove('hidden');
+                // グラフも非表示
+                const chartWrapper = document.getElementById('insuranceWeekdayChartWrapper');
+                if (chartWrapper) chartWrapper.classList.add('hidden');
                 return;
             }
 
             tbody.innerHTML = rows.join('');
             section.classList.remove('hidden');
+
+            // 曜日別グラフを描画
+            renderInsuranceWeekdayChart(month);
+        }
+
+        // 保険曜日別グラフ描画
+        function renderInsuranceWeekdayChart(month) {
+            const chartWrapper = document.getElementById('insuranceWeekdayChartWrapper');
+            const canvas = document.getElementById('insuranceWeekdayChart');
+            if (!chartWrapper || !canvas) return;
+
+            if (!month || !insuranceData[month] || !insuranceData[month].weekdaySummary) {
+                chartWrapper.classList.add('hidden');
+                return;
+            }
+
+            const summary = insuranceData[month].weekdaySummary || {};
+            const labels = [];
+            const firstVisitData = [];
+            const returnVisitData = [];
+            const revenueData = [];
+
+            WEEKDAY_DISPLAY_ORDER.forEach(key => {
+                const info = summary[key];
+                if (!info || info.dayCount === 0) return;
+
+                const labelInfo = WEEKDAY_LABELS[key] || { short: key, full: key };
+                labels.push(labelInfo.short);
+
+                const firstAvg = info.dayCount > 0 ? Math.round(info.firstVisitCount / info.dayCount) : 0;
+                const returnAvg = info.dayCount > 0 ? Math.round(info.returnVisitCount / info.dayCount) : 0;
+                const revenueAvg = info.dayCount > 0 ? Math.round((info.insurancePoints * 10) / info.dayCount) : 0;
+
+                firstVisitData.push(firstAvg);
+                returnVisitData.push(returnAvg);
+                revenueData.push(revenueAvg);
+            });
+
+            if (labels.length === 0) {
+                chartWrapper.classList.add('hidden');
+                return;
+            }
+
+            chartWrapper.classList.remove('hidden');
+
+            // 既存のグラフを破棄
+            if (insuranceWeekdayChart) {
+                insuranceWeekdayChart.destroy();
+            }
+
+            const ctx = canvas.getContext('2d');
+            insuranceWeekdayChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '初診平均（件）',
+                            data: firstVisitData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '再診平均（件）',
+                            data: returnVisitData,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgba(16, 185, 129, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '保険売上平均（円）',
+                            data: revenueData,
+                            type: 'line',
+                            backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                            borderColor: 'rgba(249, 115, 22, 1)',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
+                            yAxisID: 'y1',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        if (context.datasetIndex === 2) {
+                                            label += '¥' + context.parsed.y.toLocaleString();
+                                        } else {
+                                            label += context.parsed.y.toLocaleString() + '件';
+                                        }
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '件数'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + '件';
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '保険売上（円）'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // 傷病名ランキングのトグル
