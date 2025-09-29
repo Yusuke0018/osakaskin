@@ -427,8 +427,8 @@
                         <thead>
                             <tr class="border-b text-xs uppercase tracking-wider text-gray-500">
                                 <th class="text-left py-2">曜日</th>
-                                <th class="text-right py-2">初診件数</th>
-                                <th class="text-right py-2">再診件数</th>
+                                <th class="text-right py-2">初診平均</th>
+                                <th class="text-right py-2">再診平均</th>
                                 <th class="text-right py-2">初診割合</th>
                                 <th class="text-right py-2">保険売上平均</th>
                             </tr>
@@ -2504,8 +2504,8 @@
                                     }
                                     const pointsVal = pointsCol >= 0 ? parseIntSafe(r[pointsCol]) : 0;
 
-                                    // 何らかの値が存在する行のみ集計
-                                    if (totalVisits || firstVal || returnVal || pointsVal) {
+                                    // 受診者数が0の日は営業日とみなさない
+                                    if (totalVisits > 0) {
                                         summary.dayCount += 1;
                                         summary.dayNumbers.push(dayNumber);
                                         summary.totalVisits += totalVisits;
@@ -3279,11 +3279,15 @@
                 const ratio = totalVisits > 0 ? Math.round((firstCount / totalVisits) * 1000) / 10 : null;
                 const points = info.insurancePoints || 0;
                 const revenueAvg = info.dayCount > 0 ? Math.round((points * 10) / info.dayCount) : null;
+                const firstAvg = info.dayCount > 0 ? Math.round(firstCount / info.dayCount) : null;
+                const returnAvg = info.dayCount > 0 ? Math.round(returnCount / info.dayCount) : null;
 
                 let prevFirst = null;
                 let prevReturn = null;
                 let prevRatio = null;
                 let prevRevenueAvg = null;
+                let prevFirstAvg = null;
+                let prevReturnAvg = null;
                 if (previousSummary && previousSummary[key] && previousSummary[key].dayCount > 0) {
                     const prevInfo = previousSummary[key];
                     prevFirst = prevInfo.firstVisitCount || 0;
@@ -3291,12 +3295,18 @@
                     const prevTotal = prevInfo.totalVisits || 0;
                     prevRatio = prevTotal > 0 ? Math.round((prevInfo.firstVisitCount / prevTotal) * 1000) / 10 : null;
                     prevRevenueAvg = Math.round(((prevInfo.insurancePoints || 0) * 10) / prevInfo.dayCount);
+                    prevFirstAvg = Math.round((prevInfo.firstVisitCount || 0) / prevInfo.dayCount);
+                    prevReturnAvg = Math.round((prevInfo.returnVisitCount || 0) / prevInfo.dayCount);
                 }
 
                 const ratioDisplay = ratio !== null ? `${ratio.toFixed(1)}%` : '-';
                 const ratioDiffDisplay = formatDiffRatio(ratio, prevRatio);
-                const firstDiffDisplay = formatDiffNumber(firstCount, prevFirst, { unit: '件' });
-                const returnDiffDisplay = formatDiffNumber(returnCount, prevReturn, { unit: '件' });
+                const firstDiffDisplay = firstAvg === null
+                    ? '<span class="text-gray-400">-</span>'
+                    : formatDiffNumber(firstAvg, prevFirstAvg, { unit: '件' });
+                const returnDiffDisplay = returnAvg === null
+                    ? '<span class="text-gray-400">-</span>'
+                    : formatDiffNumber(returnAvg, prevReturnAvg, { unit: '件' });
                 const revenueDiffDisplay = revenueAvg === null
                     ? '<span class="text-gray-400">-</span>'
                     : formatDiffNumber(revenueAvg, prevRevenueAvg, { prefix: '¥' });
@@ -3308,11 +3318,11 @@
                             <div class="text-xs text-gray-400">${info.dayCount}日分</div>
                         </td>
                         <td class="py-3 pr-3 text-right align-middle">
-                            <div class="font-semibold text-gray-800">${firstCount.toLocaleString()}件</div>
+                            <div class="font-semibold text-gray-800">${firstAvg !== null ? `${firstAvg.toLocaleString()}件` : '-'}</div>
                             <div class="text-xs mt-1">${firstDiffDisplay}</div>
                         </td>
                         <td class="py-3 pr-3 text-right align-middle">
-                            <div class="font-semibold text-gray-800">${returnCount.toLocaleString()}件</div>
+                            <div class="font-semibold text-gray-800">${returnAvg !== null ? `${returnAvg.toLocaleString()}件` : '-'}</div>
                             <div class="text-xs mt-1">${returnDiffDisplay}</div>
                         </td>
                         <td class="py-3 pr-3 text-right align-middle">
