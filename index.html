@@ -917,12 +917,19 @@
             let { y, m, d } = dateInfo;
             if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return null;
 
+            const yearStr = String(y);
             if (y < 100) {
                 y = 2000 + y;
-            } else if (y >= 2050 && y < 2100 && String(y).startsWith('205')) {
-                y = 2000 + (y % 100);
-            } else if (y >= 1900 && y < 2000 && (y % 100) < 50) {
-                y = 2000 + (y % 100);
+            } else if (yearStr.length === 2) {
+                y = 2000 + Number(yearStr);
+            } else if (yearStr.length === 4) {
+                if (yearStr.startsWith('20') && y >= 2050 && y < 2100 && filename) {
+                    // 2050 などに誤判定されたケースは末尾2桁を使用
+                    y = 2000 + (y % 100);
+                } else if (yearStr.startsWith('25') && y >= 2500 && y < 2600) {
+                    // 2025が2500として判定された場合の補正
+                    y = 2000 + (y % 100);
+                }
             }
 
             const jsDate = new Date(y, m - 1, d);
@@ -944,6 +951,7 @@
                 displayDate: `${y}年${String(m).padStart(2, '0')}月${String(d).padStart(2, '0')}日`
             };
         }
+
 
         function createEmptySelfPayWeekdaySummary() {
             const summary = {};
