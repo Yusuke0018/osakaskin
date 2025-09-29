@@ -1043,9 +1043,9 @@
             const patterns = [
                 /(\d{4})年(\d{2})月/,
                 /(\d{4})[:](\d{2})/,
-                /(\d{4})[-_./](\d{2})/,
+                /(\d{4})[-_./](\d{2})(?!\d)/,  // 区切り文字がある場合、後続に数字が続かないことを確認
                 /(\d{4})(\d{2})(?!\d)/, // 後続に数字が続かない6桁（YYYYMM）
-                /(\d{4})(\d{2})/ // フォールバック（先頭6桁）
+                // /(\d{4})(\d{2})/ // フォールバック（先頭6桁）- 8桁の日付と誤認識するため削除
             ];
             for (const re of patterns) {
                 const m = name.match(re);
@@ -1547,10 +1547,12 @@
                     const monthMatch2 = filename.match(/(\d{8})/);
                     if (monthMatch2) {
                         const dateStr = monthMatch2[1];
+                        console.log(`8桁の日付文字列を検出: ${dateStr}`);
                         // 8桁の日付形式: YYYYMMDD
                         const year = dateStr.slice(0, 4);
                         const month = dateStr.slice(4, 6);
                         const day = dateStr.slice(6, 8);
+                        console.log(`解析結果: 年=${year}, 月=${month}, 日=${day}`);
                         
                         // 年が妥当な範囲かチェック（2020-2030年）
                         const yearNum = parseInt(year, 10);
@@ -1558,15 +1560,22 @@
                             const ym = buildYearMonth(year, month);
                             if (ym) {
                                 yearMonth = ym;
-                                console.log(`8桁日付形式から抽出: ${dateStr} → ${year}年${month}月`);
+                                console.log(`8桁日付形式から正常に抽出: ${dateStr} → ${year}年${month}月 → yearMonth=${ym}`);
+                            } else {
+                                console.log(`buildYearMonthが失敗: year=${year}, month=${month}`);
                             }
+                        } else {
+                            console.log(`年が範囲外: ${yearNum}`);
                         }
                     }
                 }
                 if (!yearMonth) {
                     // より柔軟に YYYY-MM / YYYY_MM / YYYY.MM / YYYY年MM月
                     const ym = extractYearMonthFromName(filename);
-                    if (ym) yearMonth = ym;
+                    if (ym) {
+                        console.log(`extractYearMonthFromNameで抽出: ${ym} from ${filename}`);
+                        yearMonth = ym;
+                    }
                 }
             }
             
