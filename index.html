@@ -766,7 +766,7 @@
         // ユーティリティ
         const MIN_SUPPORTED_YEAR = 2025;
         const MAX_SUPPORTED_YEAR = 2100;
-        const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬'];
+        const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬', '診療費', 'shinryouhi', 'gekkei'];
         const DISEASE_FILE_KEYWORDS = ['データ検索', '抽出', '傷病名', '病名', '診断名'];
         const SUM_KEYWORDS = ['合計', '総合計', '総計'];
         const REVENUE_KEYWORDS = ['医療収益', '診療収益', '収益', '売上', '金額'];
@@ -789,6 +789,23 @@
 
         function includesAny(text, keys) {
             return keys.some(k => text.includes(k));
+        }
+
+        function looksLikeInsuranceData(data) {
+            const keywords = ['保険点数', '受診者数', '初診件数', '再診件数', '窓口請求金額'];
+            if (!data) return false;
+
+            if (typeof data === 'string') {
+                const normalized = normalizeHalfWidth(data);
+                return keywords.some(k => normalized.includes(k));
+            }
+
+            if (Array.isArray(data)) {
+                const rows = data.slice(0, 10);
+                return rows.some(row => Array.isArray(row) && row.some(cell => keywords.some(k => (cell || '').toString().includes(k))));
+            }
+
+            return false;
         }
 
         function isYearWithinSupportedRange(yearNumber) {
@@ -1277,8 +1294,15 @@
 
             // ファイルタイプの判定（ファイル名による判定）
             const isDiseaseData = includesAny(filename, DISEASE_FILE_KEYWORDS);
-            const isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData;
+            let isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData;
             console.log('File type - Insurance:', isInsurance, 'Disease:', isDiseaseData);
+
+            if (!isDiseaseData && !isInsurance) {
+                if (looksLikeInsuranceData(data)) {
+                    console.log('Detected insurance data from content');
+                    isInsurance = true;
+                }
+            }
 
             // ファイル名から年月を抽出
             lastInvalidYearMonth = null;
