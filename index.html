@@ -420,7 +420,7 @@
             <div id="insuranceWeekdaySection" class="bg-white rounded-lg shadow-sm p-6 mb-6 hidden">
                 <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-800">曜日別診療サマリー</h3>
-                    <p class="text-sm text-gray-500">保険売上は保険点数を10倍した金額で表示しています。</p>
+                    <p class="text-sm text-gray-500">保険売上平均は保険点数を10倍した1日あたりの金額です。</p>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
@@ -430,7 +430,7 @@
                                 <th class="text-right py-2">初診件数</th>
                                 <th class="text-right py-2">再診件数</th>
                                 <th class="text-right py-2">初診割合</th>
-                                <th class="text-right py-2">保険売上</th>
+                                <th class="text-right py-2">保険売上平均</th>
                             </tr>
                         </thead>
                         <tbody id="insuranceWeekdayTableBody"></tbody>
@@ -3278,26 +3278,28 @@
                 const totalVisits = info.totalVisits || 0;
                 const ratio = totalVisits > 0 ? Math.round((firstCount / totalVisits) * 1000) / 10 : null;
                 const points = info.insurancePoints || 0;
-                const revenue = points * 10;
+                const revenueAvg = info.dayCount > 0 ? Math.round((points * 10) / info.dayCount) : null;
 
                 let prevFirst = null;
                 let prevReturn = null;
                 let prevRatio = null;
-                let prevRevenue = null;
+                let prevRevenueAvg = null;
                 if (previousSummary && previousSummary[key] && previousSummary[key].dayCount > 0) {
                     const prevInfo = previousSummary[key];
                     prevFirst = prevInfo.firstVisitCount || 0;
                     prevReturn = prevInfo.returnVisitCount || 0;
                     const prevTotal = prevInfo.totalVisits || 0;
                     prevRatio = prevTotal > 0 ? Math.round((prevInfo.firstVisitCount / prevTotal) * 1000) / 10 : null;
-                    prevRevenue = (prevInfo.insurancePoints || 0) * 10;
+                    prevRevenueAvg = Math.round(((prevInfo.insurancePoints || 0) * 10) / prevInfo.dayCount);
                 }
 
                 const ratioDisplay = ratio !== null ? `${ratio.toFixed(1)}%` : '-';
                 const ratioDiffDisplay = formatDiffRatio(ratio, prevRatio);
                 const firstDiffDisplay = formatDiffNumber(firstCount, prevFirst, { unit: '件' });
                 const returnDiffDisplay = formatDiffNumber(returnCount, prevReturn, { unit: '件' });
-                const revenueDiffDisplay = formatDiffNumber(revenue, prevRevenue, { prefix: '¥' });
+                const revenueDiffDisplay = revenueAvg === null
+                    ? '<span class="text-gray-400">-</span>'
+                    : formatDiffNumber(revenueAvg, prevRevenueAvg, { prefix: '¥' });
 
                 rows.push(`
                     <tr class="border-b last:border-0">
@@ -3318,7 +3320,7 @@
                             <div class="text-xs mt-1">${ratioDiffDisplay}</div>
                         </td>
                         <td class="py-3 text-right align-middle">
-                            <div class="font-semibold text-gray-800">¥${revenue.toLocaleString()}</div>
+                            <div class="font-semibold text-gray-800">${revenueAvg !== null ? `¥${revenueAvg.toLocaleString()}` : '-'}</div>
                             <div class="text-xs mt-1">${revenueDiffDisplay}</div>
                         </td>
                     </tr>
