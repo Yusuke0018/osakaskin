@@ -2644,19 +2644,43 @@
                 document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
 
                 try {
-                    const wd = workdayData[currentMonth];
                     const methodEl = document.getElementById('businessDaysInsuranceMethod');
                     const valueEl = document.getElementById('businessDaysInsurance');
                     if (valueEl) {
-                        if (wd && wd.saleDaysCount > 0) {
-                            valueEl.textContent = wd.saleDaysCount + '日';
-                            if (methodEl) methodEl.textContent = wd.method || '開始日件数';
-                        } else {
-                            const { y, m } = parseFormattedYearMonth(currentMonth);
-                            const weekdays = countWeekdaysInMonth(y, m, false);
-                            valueEl.textContent = weekdays + '日';
-                            if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
+                        let businessDayCount = null;
+                        let methodLabel = '受診日数';
+
+                        if (data.weekdaySummary) {
+                            const uniqueDays = new Set();
+                            Object.values(data.weekdaySummary).forEach(info => {
+                                if (info && Array.isArray(info.dayNumbers)) {
+                                    info.dayNumbers.forEach(day => {
+                                        if (Number.isFinite(day)) uniqueDays.add(day);
+                                    });
+                                }
+                            });
+                            if (uniqueDays.size > 0) {
+                                businessDayCount = uniqueDays.size;
+                                methodLabel = '曜日別集計';
+                            }
                         }
+
+                        if (businessDayCount === null) {
+                            const wd = workdayData[currentMonth];
+                            if (wd && wd.saleDaysCount > 0) {
+                                businessDayCount = wd.saleDaysCount;
+                                methodLabel = wd.method || '受診日数';
+                            }
+                        }
+
+                        if (businessDayCount === null) {
+                            const { y, m } = parseFormattedYearMonth(currentMonth);
+                            businessDayCount = countWeekdaysInMonth(y, m, false);
+                            methodLabel = '平日日数 (Mon-Fri)';
+                        }
+
+                        valueEl.textContent = businessDayCount + '日';
+                        if (methodEl) methodEl.textContent = methodLabel;
                     }
                 } catch (e) {
                     console.warn('営業日数表示（保険）エラー:', e);
