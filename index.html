@@ -165,6 +165,11 @@
                         <tbody id="selfPayWeekdayTableBody"></tbody>
                     </table>
                 </div>
+                <div id="selfPayWeekdayChartWrapper" class="mt-6 hidden">
+                    <div class="relative h-72">
+                        <canvas id="selfPayWeekdayChart"></canvas>
+                    </div>
+                </div>
             </div>
 
             <!-- 男女比率 -->
@@ -555,6 +560,7 @@
         let productChart = null;
         let genderChart = null; // 男女比率グラフ用
         let treatmentGenderChart = null; // 施術詳細の男女比率グラフ用
+        let selfPayWeekdayChart = null; // 自費曜日別グラフ
 
         // 初期化
         document.addEventListener('DOMContentLoaded', async () => {
@@ -801,6 +807,7 @@
         const SELF_PAY_INITIAL_KEYWORDS = ['初診', '初回', '初受', '初来'];
         const SELF_PAY_RETURN_KEYWORDS = ['再診', '再来', '再受'];
         const SELF_PAY_EXCLUDE_ITEMS = ['診察料（自費）', '調整金額', '予約用', '調整金額(230)'];
+        const EXCLUDED_TREATMENT_NAMES = new Set(['初回受診', '再受診', '麻酔追加']);
         const WEEKDAY_KEY_FROM_JSINDEX = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         const WEEKDAY_DISPLAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
         const WEEKDAY_LABELS = {
@@ -2070,13 +2077,19 @@
             const currentData = salesData[currentMonth];
             const hasBothGenders = currentData && currentData.hasBothGenders;
             
-            const sortedTreatments = Object.entries(treatments).sort((a, b) => {
+            const filteredTreatments = Object.entries(treatments).filter(([name]) => !EXCLUDED_TREATMENT_NAMES.has(name));
+            const sortedTreatments = filteredTreatments.sort((a, b) => {
                 if (rankingMode === 'amount') {
                     return b[1].amount - a[1].amount;
                 } else {
                     return b[1].count - a[1].count;
                 }
             });
+
+            if (sortedTreatments.length === 0) {
+                document.getElementById('treatmentRanking').innerHTML = '<p class="text-gray-500">表示対象の施術データがありません</p>';
+                return;
+            }
             
             let html = `
                 <table class="w-full">
@@ -2198,12 +2211,22 @@
         function renderSelfPayWeekdaySummary(data) {
             const section = document.getElementById('selfPayWeekdaySection');
             const tbody = document.getElementById('selfPayWeekdayTableBody');
+            const chartWrapper = document.getElementById('selfPayWeekdayChartWrapper');
+            const chartCanvas = document.getElementById('selfPayWeekdayChart');
+            const resetWeekdayChart = () => {
+                if (selfPayWeekdayChart) {
+                    selfPayWeekdayChart.destroy();
+                    selfPayWeekdayChart = null;
+                }
+                if (chartWrapper) chartWrapper.classList.add('hidden');
+            };
             if (!section || !tbody) return;
 
             const summary = data && data.weekdaySummarySelf ? data.weekdaySummarySelf : null;
             if (!summary) {
                 section.classList.add('hidden');
                 tbody.innerHTML = '';
+                resetWeekdayChart();
                 return;
             }
 
@@ -2221,6 +2244,11 @@
 
             const rows = [];
             let hasData = false;
+            const chartLabels = [];
+            const initialAverages = [];
+            const returnAverages = [];
+            const totalAverages = [];
+            const amountAverages = [];
             WEEKDAY_DISPLAY_ORDER.forEach(key => {
                 const info = summary[key];
                 if (!info || info.dayCount === 0) return;
@@ -2230,6 +2258,15 @@
                 const returnAvg = info.dayCount > 0 ? info.returnCount / info.dayCount : null;
                 const treatmentCountAvg = info.dayCount > 0 ? info.treatmentCount / info.dayCount : null;
                 const treatmentAmountAvg = info.dayCount > 0 ? info.treatmentAmount / info.dayCount : null;
+                chartLabels.push(weekdayLabel);
+                const roundedInitial = Number.isFinite(initialAvg) ? Math.round(initialAvg * 10) / 10 : 0;
+                const roundedReturn = Number.isFinite(returnAvg) ? Math.round(returnAvg * 10) / 10 : 0;
+                const roundedTotal = Number.isFinite(treatmentCountAvg) ? Math.round(treatmentCountAvg * 10) / 10 : 0;
+                const normalizedAmount = Number.isFinite(treatmentAmountAvg) ? Math.round(treatmentAmountAvg) : 0;
+                initialAverages.push(roundedInitial);
+                returnAverages.push(roundedReturn);
+                totalAverages.push(roundedTotal);
+                amountAverages.push(normalizedAmount);
 
                 rows.push(`
                     <tr class="border-b last:border-0">
@@ -2246,11 +2283,120 @@
             if (!hasData) {
                 section.classList.add('hidden');
                 tbody.innerHTML = '<tr><td class="py-4 text-center text-gray-500" colspan="6">曜日別のデータがありません</td></tr>';
+                resetWeekdayChart();
                 return;
             }
 
             tbody.innerHTML = rows.join('');
             section.classList.remove('hidden');
+
+            if (!chartCanvas || chartLabels.length === 0) {
+                resetWeekdayChart();
+                return;
+            }
+
+            resetWeekdayChart();
+            if (chartWrapper) chartWrapper.classList.remove('hidden');
+            selfPayWeekdayChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        {
+                            label: '初診平均件数',
+                            data: initialAverages,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderRadius: 6,
+                            maxBarThickness: 36,
+                            order: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '再診平均件数',
+                            data: returnAverages,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderRadius: 6,
+                            maxBarThickness: 36,
+                            order: 1,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '施術平均件数',
+                            data: totalAverages,
+                            type: 'line',
+                            borderColor: 'rgba(37, 99, 235, 1)',
+                            backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            fill: false,
+                            order: 0,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '施術平均売上',
+                            data: amountAverages,
+                            type: 'line',
+                            borderColor: 'rgba(249, 115, 22, 1)',
+                            backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                            tension: 0.3,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            fill: false,
+                            order: 0,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    stacked: false,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                callback: value => `${value}件`
+                            },
+                            title: {
+                                display: true,
+                                text: '平均件数'
+                            }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                callback: value => '¥' + Number(value).toLocaleString()
+                            },
+                            title: {
+                                display: true,
+                                text: '平均売上'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const value = context.parsed.y ?? context.parsed;
+                                    if (context.dataset.yAxisID === 'y1') {
+                                        return `${label}: ¥${Number(value).toLocaleString()}`;
+                                    }
+                                    return `${label}: ${Number(value).toLocaleString()}件`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // グラフ更新
