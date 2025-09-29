@@ -1542,14 +1542,24 @@
                         yearMonth = ym;
                     }
                 }
-                // パターン2: 20250701-20250731 形式
+                // パターン2: 20250604-20250604 または 20250701-20250731 形式（8桁の日付）
                 if (!yearMonth) {
-                    const monthMatch2 = filename.match(/(\d{6})\d{2}/);
+                    const monthMatch2 = filename.match(/(\d{8})/);
                     if (monthMatch2) {
-                        const candidate = monthMatch2[1];
-                        const ym = buildYearMonth(candidate.slice(0, 4), candidate.slice(4, 6));
-                        if (ym) {
-                            yearMonth = ym;
+                        const dateStr = monthMatch2[1];
+                        // 8桁の日付形式: YYYYMMDD
+                        const year = dateStr.slice(0, 4);
+                        const month = dateStr.slice(4, 6);
+                        const day = dateStr.slice(6, 8);
+                        
+                        // 年が妥当な範囲かチェック（2020-2030年）
+                        const yearNum = parseInt(year, 10);
+                        if (yearNum >= 2020 && yearNum <= 2030) {
+                            const ym = buildYearMonth(year, month);
+                            if (ym) {
+                                yearMonth = ym;
+                                console.log(`8桁日付形式から抽出: ${dateStr} → ${year}年${month}月`);
+                            }
                         }
                     }
                 }
