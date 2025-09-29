@@ -1,0 +1,10 @@
+timestamp: 2025-09-29T18:29:59+09:00
+branch: main
+latest_commit: 23fb17d
+diff_stat:
+ index.html | 66 +++++++++++++++++++++++++++++++++++++++++---------------------
+ 1 file changed, 44 insertions(+), 22 deletions(-)
+tests: not run (no test suite defined)
+format: not run (no formatter configured)
+notes: keep insurance summaries when disease-only CSV is loaded and include disease months when restoring state
+--- end pre-push log ---

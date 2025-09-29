@@ -1078,7 +1078,7 @@
         }
         
         // タブ切り替え処理
-        function switchTab(tab) {
+        function switchTab(tab, options = {}) {
             currentTab = tab;
             
             // タブのスタイル更新
@@ -1105,7 +1105,9 @@
                 document.getElementById('selfPayContent').classList.add('hidden');
                 document.getElementById('insuranceContent').classList.remove('hidden');
                 
-                displayInsuranceData();
+                if (!options.skipDisplay) {
+                    displayInsuranceData();
+                }
             }
         }
 
@@ -1137,16 +1139,40 @@
             updateMonthSelector();
             
             // データがある場合は最新の月を表示
-            const allMonths = [...Object.keys(salesData), ...Object.keys(insuranceData)];
+            const monthSet = new Set([
+                ...Object.keys(salesData || {}),
+                ...Object.keys(insuranceData || {}),
+                ...Object.keys(insuranceDiseaseData || {})
+            ]);
+            const allMonths = Array.from(monthSet).sort();
             if (allMonths.length > 0) {
-                currentMonth = allMonths.sort().pop();
-                document.getElementById('monthSelector').value = currentMonth;
-                
-                // 現在のタブに応じて表示
-                if (currentTab === 'selfPay' && salesData[currentMonth]) {
-                    displayData();
-                } else if (currentTab === 'insurance' && insuranceData[currentMonth]) {
-                    displayInsuranceData();
+                currentMonth = allMonths[allMonths.length - 1];
+                const selector = document.getElementById('monthSelector');
+                if (selector) selector.value = currentMonth;
+
+                const hasSalesCurrent = Boolean(salesData[currentMonth]);
+                const hasInsuranceCurrent = Boolean(insuranceData[currentMonth]);
+                const hasDiseaseCurrent = Boolean(insuranceDiseaseData[currentMonth]);
+
+                if (currentTab === 'selfPay') {
+                    if (hasSalesCurrent) {
+                        displayData();
+                    } else if (hasInsuranceCurrent || hasDiseaseCurrent) {
+                        switchTab('insurance');
+                    }
+                } else if (currentTab === 'insurance') {
+                    if (hasInsuranceCurrent || hasDiseaseCurrent) {
+                        displayInsuranceData();
+                    } else if (hasSalesCurrent) {
+                        switchTab('selfPay');
+                    }
+                }
+
+                // どちらのタブも該当しない場合は優先度順に切り替え
+                if (!hasSalesCurrent && (hasInsuranceCurrent || hasDiseaseCurrent) && currentTab !== 'insurance') {
+                    switchTab('insurance');
+                } else if (!hasInsuranceCurrent && !hasDiseaseCurrent && hasSalesCurrent && currentTab !== 'selfPay') {
+                    switchTab('selfPay');
                 }
             }
 
@@ -2466,18 +2492,14 @@
                 displayInsuranceComparison(currentMonth);
                 updateInsuranceCharts();
             } else {
-                if (noInsuranceEl) noInsuranceEl.classList.remove('hidden');
+                if (noInsuranceEl) {
+                    noInsuranceEl.classList.remove('hidden');
+                    const messageEl = noInsuranceEl.querySelector('p');
+                    if (messageEl) {
+                        messageEl.textContent = '保険データは未読み込みですが、最新の傷病名ランキングを表示しています。';
+                    }
+                }
                 if (chartArea) chartArea.classList.add('hidden');
-
-                ['medicalRevenue', 'firstVisitCount', 'returnVisitCount', 'newPatientCount', 'totalPatientCount'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.textContent = '-';
-                });
-
-                const methodEl = document.getElementById('businessDaysInsuranceMethod');
-                const valueEl = document.getElementById('businessDaysInsurance');
-                if (methodEl) methodEl.textContent = '-';
-                if (valueEl) valueEl.textContent = '-';
 
                 if (window.insuranceRevenueChart && typeof window.insuranceRevenueChart.destroy === 'function') {
                     window.insuranceRevenueChart.destroy();
