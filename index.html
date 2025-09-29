@@ -57,8 +57,8 @@
                     </select>
                     <!-- CSVアップロード -->
                     <label class="px-6 py-3 bg-blue-600 text-white rounded-lg cursor-pointer hover:bg-blue-700 transition text-center font-medium">
-                        CSVアップロード
-                        <input type="file" id="csvFile" accept=".csv" class="hidden">
+                        CSVアップロード（複数可）
+                        <input type="file" id="csvFile" accept=".csv" class="hidden" multiple>
                     </label>
                     <!-- 共有リンク作成 -->
                     <button id="shareBtn" onclick="generateShareLink()" class="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-center font-medium disabled:opacity-50" disabled>
@@ -1157,36 +1157,61 @@
         }
 
         // CSVファイルアップロード処理
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        async function handleFileUpload(event) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
 
-            console.log('Uploaded file name:', file.name);
+            for (const file of files) {
+                try {
+                    await processUploadedCsvFile(file);
+                } catch (error) {
+                    console.error('CSVファイルの読み込みに失敗しました:', error);
+                    const message = error && error.message ? error.message : error;
+                    alert(`CSVファイルの読み込みに失敗しました: ${file.name}\n${message}`);
+                }
+            }
+
+            event.target.value = '';
+        }
+
+        function processUploadedCsvFile(file) {
             const fname = file.name;
-            // 保険/傷病名ファイルは Shift-JIS 読み（名称多様化対応）
+            console.log('Uploaded file name:', fname);
             const isInsuranceLike = includesAny(fname, INSURANCE_FILE_KEYWORDS);
             const isDiseaseLike = includesAny(fname, DISEASE_FILE_KEYWORDS);
-            if (isInsuranceLike || isDiseaseLike) {
-                console.log('Processing as Shift-JIS file');
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const text = e.target.result;
-                    processCSVData(text, fname);
-                };
-                // Shift-JISで読み込み
-                reader.readAsText(file, 'Shift-JIS');
-            } else {
-                // 自費ファイルは通常通りPapaParseで処理
-                Papa.parse(file, {
-                    encoding: 'UTF-8',
-                    complete: function(results) {
-                        processCSVData(results.data, fname);
-                    },
-                    error: function(error) {
-                        alert('CSVファイルの読み込みに失敗しました: ' + error.message);
+
+            return new Promise((resolve, reject) => {
+                const finalize = (payload) => {
+                    try {
+                        processCSVData(payload, fname);
+                        resolve();
+                    } catch (error) {
+                        reject(error);
                     }
-                });
-            }
+                };
+
+                if (isInsuranceLike || isDiseaseLike) {
+                    console.log('Processing as Shift-JIS file');
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        finalize(e.target.result);
+                    };
+                    reader.onerror = function() {
+                        reject(new Error('ファイルの読み込みに失敗しました'));
+                    };
+                    reader.readAsText(file, 'Shift-JIS');
+                } else {
+                    Papa.parse(file, {
+                        encoding: 'UTF-8',
+                        complete: function(results) {
+                            finalize(results.data);
+                        },
+                        error: function(error) {
+                            reject(error);
+                        }
+                    });
+                }
+            });
         }
 
         // CSVデータ処理
