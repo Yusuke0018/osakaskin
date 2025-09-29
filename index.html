@@ -1105,10 +1105,7 @@
                 document.getElementById('selfPayContent').classList.add('hidden');
                 document.getElementById('insuranceContent').classList.remove('hidden');
                 
-                // 保険データがある場合は表示
-                if (currentMonth && insuranceData[currentMonth]) {
-                    displayInsuranceData();
-                }
+                displayInsuranceData();
             }
         }
 
@@ -1625,15 +1622,20 @@
         function handleMonthChange(event) {
             currentMonth = event.target.value;
             if (currentMonth) {
-                if (currentTab === 'selfPay' && salesData[currentMonth]) {
-                    displayData();
-                } else if (currentTab === 'insurance' && insuranceData[currentMonth]) {
-                    displayInsuranceData();
-                } else {
-                    // データがない場合
-                    document.getElementById('selfPayContent').classList.add('hidden');
-                    document.getElementById('insuranceContent').classList.add('hidden');
-                    document.getElementById('emptyState').classList.remove('hidden');
+                if (currentTab === 'selfPay') {
+                    if (salesData[currentMonth]) {
+                        displayData();
+                    } else {
+                        document.getElementById('selfPayContent').classList.add('hidden');
+                        document.getElementById('emptyState').classList.remove('hidden');
+                    }
+                } else if (currentTab === 'insurance') {
+                    if (insuranceData[currentMonth] || insuranceDiseaseData[currentMonth]) {
+                        displayInsuranceData();
+                    } else {
+                        document.getElementById('insuranceContent').classList.add('hidden');
+                        document.getElementById('emptyState').classList.remove('hidden');
+                    }
                 }
             } else {
                 document.getElementById('selfPayContent').classList.add('hidden');
@@ -2397,74 +2399,112 @@
         
         // 保険データ表示
         function displayInsuranceData() {
-            if (!currentMonth || !insuranceData[currentMonth]) {
-                document.getElementById('noInsuranceData').classList.remove('hidden');
-                // グラフエリアを非表示
-                const chartArea = document.getElementById('insuranceChartArea');
-                if (chartArea) {
-                    chartArea.classList.add('hidden');
-                }
+            const contentEl = document.getElementById('insuranceContent');
+            const emptyStateEl = document.getElementById('emptyState');
+            const noInsuranceEl = document.getElementById('noInsuranceData');
+            const chartArea = document.getElementById('insuranceChartArea');
+            const diseaseRankingArea = document.getElementById('insuranceDiseaseRanking');
+
+            if (!currentMonth) {
+                if (contentEl) contentEl.classList.add('hidden');
+                if (emptyStateEl) emptyStateEl.classList.remove('hidden');
+                if (noInsuranceEl) noInsuranceEl.classList.remove('hidden');
+                if (chartArea) chartArea.classList.add('hidden');
+                if (diseaseRankingArea) diseaseRankingArea.classList.add('hidden');
                 return;
             }
-            
-            document.getElementById('noInsuranceData').classList.add('hidden');
-            document.getElementById('insuranceContent').classList.remove('hidden');
-            document.getElementById('emptyState').classList.add('hidden');
-            
-            // グラフエリアも表示
-            const chartArea = document.getElementById('insuranceChartArea');
-            if (chartArea) {
-                chartArea.classList.remove('hidden');
-            }
-            
-            // 傷病名ランキングエリアも表示（データがある場合）
-            if (insuranceDiseaseData[currentMonth]) {
-                const diseaseRankingArea = document.getElementById('insuranceDiseaseRanking');
-                if (diseaseRankingArea) {
-                    diseaseRankingArea.classList.remove('hidden');
-                    displayDiseaseRanking(currentMonth);
-                }
-            }
-            
-            const data = insuranceData[currentMonth];
-            
-            // 金額フォーマット
-            const formatAmount = (amount) => '¥' + amount.toLocaleString();
-            const formatCount = (count) => count.toLocaleString() + '件';
-            const formatPeople = (count) => count.toLocaleString() + '人';
-            
-            // 各項目の表示
-            document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue);
-            document.getElementById('firstVisitCount').textContent = formatCount(data.firstVisitCount);
-            document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
-            document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
-            document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
 
-            // 営業日数（保険）
-            try {
-                const wd = workdayData[currentMonth];
+            const hasInsurance = Boolean(insuranceData[currentMonth]);
+            const hasDisease = Boolean(insuranceDiseaseData[currentMonth]);
+
+            if (!hasInsurance && !hasDisease) {
+                if (contentEl) contentEl.classList.add('hidden');
+                if (emptyStateEl) emptyStateEl.classList.remove('hidden');
+                if (noInsuranceEl) noInsuranceEl.classList.remove('hidden');
+                if (chartArea) chartArea.classList.add('hidden');
+                if (diseaseRankingArea) diseaseRankingArea.classList.add('hidden');
+                return;
+            }
+
+            if (emptyStateEl) emptyStateEl.classList.add('hidden');
+            if (contentEl) contentEl.classList.remove('hidden');
+
+            if (hasInsurance) {
+                if (noInsuranceEl) noInsuranceEl.classList.add('hidden');
+                if (chartArea) chartArea.classList.remove('hidden');
+
+                const data = insuranceData[currentMonth];
+                const formatAmount = (amount) => '¥' + amount.toLocaleString();
+                const formatCount = (count) => count.toLocaleString() + '件';
+                const formatPeople = (count) => count.toLocaleString() + '人';
+
+                document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue);
+                document.getElementById('firstVisitCount').textContent = formatCount(data.firstVisitCount);
+                document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
+                document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
+                document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
+
+                try {
+                    const wd = workdayData[currentMonth];
+                    const methodEl = document.getElementById('businessDaysInsuranceMethod');
+                    const valueEl = document.getElementById('businessDaysInsurance');
+                    if (valueEl) {
+                        if (wd && wd.saleDaysCount > 0) {
+                            valueEl.textContent = wd.saleDaysCount + '日';
+                            if (methodEl) methodEl.textContent = '開始日件数';
+                        } else {
+                            const { y, m } = parseFormattedYearMonth(currentMonth);
+                            const weekdays = countWeekdaysInMonth(y, m, false);
+                            valueEl.textContent = weekdays + '日';
+                            if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
+                        }
+                    }
+                } catch (e) {
+                    console.warn('営業日数表示（保険）エラー:', e);
+                }
+
+                displayInsuranceComparison(currentMonth);
+                updateInsuranceCharts();
+            } else {
+                if (noInsuranceEl) noInsuranceEl.classList.remove('hidden');
+                if (chartArea) chartArea.classList.add('hidden');
+
+                ['medicalRevenue', 'firstVisitCount', 'returnVisitCount', 'newPatientCount', 'totalPatientCount'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = '-';
+                });
+
                 const methodEl = document.getElementById('businessDaysInsuranceMethod');
                 const valueEl = document.getElementById('businessDaysInsurance');
-                if (valueEl) {
-                    if (wd && wd.saleDaysCount > 0) {
-                        valueEl.textContent = wd.saleDaysCount + '日';
-                        if (methodEl) methodEl.textContent = '開始日件数';
-                    } else {
-                        const { y, m } = parseFormattedYearMonth(currentMonth);
-                        const weekdays = countWeekdaysInMonth(y, m, false);
-                        valueEl.textContent = weekdays + '日';
-                        if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
-                    }
+                if (methodEl) methodEl.textContent = '-';
+                if (valueEl) valueEl.textContent = '-';
+
+                if (window.insuranceRevenueChart && typeof window.insuranceRevenueChart.destroy === 'function') {
+                    window.insuranceRevenueChart.destroy();
+                    window.insuranceRevenueChart = null;
                 }
-            } catch (e) {
-                console.warn('営業日数表示（保険）エラー:', e);
+                if (window.insurancePatientChart && typeof window.insurancePatientChart.destroy === 'function') {
+                    window.insurancePatientChart.destroy();
+                    window.insurancePatientChart = null;
+                }
+                if (window.insuranceVisitChart && typeof window.insuranceVisitChart.destroy === 'function') {
+                    window.insuranceVisitChart.destroy();
+                    window.insuranceVisitChart = null;
+                }
+                if (window.insuranceNewPatientChart && typeof window.insuranceNewPatientChart.destroy === 'function') {
+                    window.insuranceNewPatientChart.destroy();
+                    window.insuranceNewPatientChart = null;
+                }
             }
-            
-            // 前月比の計算と表示
-            displayInsuranceComparison(currentMonth);
-            
-            // グラフを更新
-            updateInsuranceCharts();
+
+            if (diseaseRankingArea) {
+                if (hasDisease) {
+                    diseaseRankingArea.classList.remove('hidden');
+                    displayDiseaseRanking(currentMonth);
+                } else {
+                    diseaseRankingArea.classList.add('hidden');
+                }
+            }
         }
         
 
@@ -3401,10 +3441,14 @@
                     }
                 }
                 
-                // 月ごとのデータを保存
-                if (!insuranceDiseaseData[formattedMonth]) {
-                    insuranceDiseaseData[formattedMonth] = {};
+                const diseaseEntries = Object.keys(diseaseCount);
+                if (diseaseEntries.length === 0) {
+                    console.warn('傷病名データの抽出に失敗しました');
+                    alert('傷病名データを検出できませんでした。CSVのフォーマットをご確認ください。既存のデータは保持しました。');
+                    return;
                 }
+
+                // 月ごとのデータを保存
                 insuranceDiseaseData[formattedMonth] = diseaseCount;
                 
                 // ローカルストレージに保存
@@ -3484,15 +3528,8 @@
                 updateMonthSelector();
                 document.getElementById('monthSelector').value = currentMonth;
                 
-                // 保険タブに切り替えてランキングを即時表示
+                // 保険タブに切り替えて最新情報を表示
                 switchTab('insurance');
-                try {
-                    const diseaseRankingArea = document.getElementById('insuranceDiseaseRanking');
-                    if (diseaseRankingArea) diseaseRankingArea.classList.remove('hidden');
-                    displayDiseaseRanking(currentMonth);
-                } catch (e) {
-                    console.warn('傷病名ランキングの描画でエラー:', e);
-                }
                 
                 alert(`${formattedMonth}の傷病名データを読み込みました`);
             } catch (error) {

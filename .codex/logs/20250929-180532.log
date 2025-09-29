@@ -1,0 +1,10 @@
+timestamp: 2025-09-29T18:05:32+09:00
+branch: main
+latest_commit: 9e50614
+diff_stat:
+ index.html | 203 ++++++++++++++++++++++++++++++++++++-------------------------
+ 1 file changed, 120 insertions(+), 83 deletions(-)
+tests: not run (no test suite defined)
+format: not run (no formatter configured)
+notes: keep insurance tab functional when only disease CSV is uploaded and prevent empty parses from clearing existing rankings
+--- end pre-push log ---
