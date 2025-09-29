@@ -2526,6 +2526,7 @@
                 hasAny = true;
                 const dayCount = summaryInfo.dayCount;
                 const weekdayLabel = (WEEKDAY_LABELS[key] || {}).full || key;
+                const accent = getWeekdayAccent(key);
 
                 const amountRanking = entries.slice().sort((a, b) => {
                     const aAvg = dayCount > 0 ? (a[1].amount || 0) / dayCount : 0;
