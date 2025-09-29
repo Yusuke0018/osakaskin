@@ -1,0 +1,9 @@
+timestamp: 2025-09-29T16:13:56+09:00
+branch: main
+latest_commit: 4f82396
+diff_stat:
+M	index.html
+tests: not run (browser-based UI)
+format: not run (no formatter configured)
+notes: replaced index.html with weekday-aware dashboard and enforced supported year range 2025-2100
+--- end pre-push log ---
