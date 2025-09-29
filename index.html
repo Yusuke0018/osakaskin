@@ -757,7 +757,6 @@
         }
 
         let lastInvalidYearMonth = null;
-        let lastInvalidYearMonthReason = null;
 
         function normalizeHalfWidth(str) {
             if (!str) return '';
@@ -767,66 +766,24 @@
             return z2h;
         }
 
-        function formatYearMonthLabel(yearVal, monthVal) {
-            const yearNum = parseInt(String(yearVal), 10);
-            const yearLabel = Number.isFinite(yearNum) ? String(yearNum) : String(yearVal || '').trim() || '不明';
-            const monthNum = parseInt(String(monthVal), 10);
-            let monthLabel;
-            if (Number.isFinite(monthNum)) {
-                monthLabel = String(monthNum).padStart(2, '0');
-            } else {
-                const raw = String(monthVal || '').trim();
-                monthLabel = raw ? raw : '??';
-            }
-            return `${yearLabel}年${monthLabel}月`;
-        }
-
-        function markInvalidYearMonth(yearVal, monthVal, reason = 'month') {
-            lastInvalidYearMonth = formatYearMonthLabel(yearVal, monthVal);
-            lastInvalidYearMonthReason = reason;
-        }
-
         function buildYearMonth(year, monthRaw) {
             if (!year || monthRaw === undefined || monthRaw === null) return null;
-            const yearNumber = parseInt(String(year), 10);
             const monthNumber = parseInt(String(monthRaw), 10);
-            if (!Number.isFinite(yearNumber)) {
-                markInvalidYearMonth(year, monthRaw, 'year');
-                return null;
-            }
-            if (yearNumber < 2024) {
-                markInvalidYearMonth(yearNumber, monthRaw, 'year');
-                return null;
-            }
             if (!Number.isFinite(monthNumber)) {
-                markInvalidYearMonth(yearNumber, monthRaw, 'month');
+                lastInvalidYearMonth = `${year}年${String(monthRaw).padStart(2, '0')}月`;
                 return null;
             }
             if (monthNumber < 1 || monthNumber > 12) {
-                markInvalidYearMonth(yearNumber, monthRaw, 'month');
+                lastInvalidYearMonth = `${year}年${String(monthRaw).padStart(2, '0')}月`;
                 return null;
             }
-            lastInvalidYearMonth = null;
-            lastInvalidYearMonthReason = null;
-            return String(yearNumber) + String(monthNumber).padStart(2, '0');
+            return year + String(monthNumber).padStart(2, '0');
         }
 
         function isValidYearMonth(ym) {
             if (!ym || !/^\d{6}$/.test(ym)) return false;
-            const year = parseInt(ym.slice(0, 4), 10);
             const month = parseInt(ym.slice(4, 6), 10);
-            if (!Number.isFinite(year) || !Number.isFinite(month)) return false;
-            if (year < 2024) {
-                markInvalidYearMonth(year, month, 'year');
-                return false;
-            }
-            if (month < 1 || month > 12) {
-                markInvalidYearMonth(year, month, 'month');
-                return false;
-            }
-            lastInvalidYearMonth = null;
-            lastInvalidYearMonthReason = null;
-            return true;
+            return month >= 1 && month <= 12;
         }
 
         function extractYearMonthFromName(filename) {
@@ -1238,7 +1195,6 @@
 
             // ファイル名から年月を抽出
             lastInvalidYearMonth = null;
-            lastInvalidYearMonthReason = null;
             let yearMonth = null;
             let formattedMonth = null;
             
@@ -1300,10 +1256,7 @@
             
             if (!yearMonth) {
                 if (lastInvalidYearMonth) {
-                    const reasonMessage = lastInvalidYearMonthReason === 'year'
-                        ? '対象期間外の年月が含まれているため読み込めませんでした。'
-                        : '日時情報に不正な月が含まれているため読み込めませんでした。';
-                    alert(`${reasonMessage}\n問題の値: ${lastInvalidYearMonth}\nファイル名: ${filename}`);
+                    alert(`日時情報に不正な月が含まれているため読み込めませんでした。\n問題の値: ${lastInvalidYearMonth}\nファイル名: ${filename}`);
                     return;
                 }
                 let expectedFormat = '';
@@ -1319,11 +1272,8 @@
             }
 
             if (!isValidYearMonth(yearMonth)) {
-                const invalidMonth = lastInvalidYearMonth || (yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月');
-                const reasonMessage = lastInvalidYearMonthReason === 'year'
-                    ? '対象期間外の年月が含まれているため読み込めませんでした。'
-                    : '日時情報に不正な月が含まれているため読み込めませんでした。';
-                alert(`${reasonMessage}\n問題の値: ${invalidMonth}\nファイル名: ${filename}`);
+                const invalidMonth = yearMonth.slice(0, 4) + '年' + yearMonth.slice(4, 6) + '月';
+                alert(`日時情報に不正な月が含まれているため読み込めませんでした。\n問題の値: ${invalidMonth}\nファイル名: ${filename}`);
                 return;
             }
 
