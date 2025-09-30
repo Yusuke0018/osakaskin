@@ -424,9 +424,9 @@
                             <p id="returnVisitCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
-                    <!-- 新患数 -->
+                    <!-- 初診数 -->
                     <div class="p-4 bg-blue-50 rounded-lg">
-                        <p class="text-sm text-gray-600 text-center mb-2">新患数</p>
+                        <p class="text-sm text-gray-600 text-center mb-2">初診数</p>
                         <div class="text-center">
                             <p id="newPatientCount" class="text-2xl font-bold text-blue-800">-</p>
                             <p id="newPatientCountComparison" class="text-sm mt-1"></p>
@@ -500,9 +500,9 @@
                             <canvas id="insuranceVisitChart"></canvas>
                         </div>
                     </div>
-                    <!-- 新患数推移 -->
+                    <!-- 初診数推移 -->
                     <div>
-                        <h4 class="text-md font-medium mb-3">新患数推移</h4>
+                        <h4 class="text-md font-medium mb-3">初診数推移</h4>
                         <div style="height: 300px; position: relative;">
                             <canvas id="insuranceNewPatientChart"></canvas>
                         </div>
@@ -4269,9 +4269,9 @@
                 });
             }
             
-            // 新患数推移グラフ
+            // 初診数推移グラフ
             const newPatientData = months.map(month => insuranceData[month].newPatientCount);
-            
+
             const newPatientCanvas = document.getElementById('insuranceNewPatientChart');
             if (newPatientCanvas) {
                 const newPatientCtx = newPatientCanvas.getContext('2d');
@@ -4283,7 +4283,7 @@
                     data: {
                         labels: months,
                         datasets: [{
-                            label: '新患数',
+                            label: '初診数',
                             data: newPatientData,
                             backgroundColor: 'rgba(236, 72, 153, 0.8)',
                             borderColor: 'rgb(236, 72, 153)',
@@ -4300,7 +4300,7 @@
                             tooltip: {
                                 callbacks: {
                                     label: function(context) {
-                                        return '新患数: ' + context.parsed.y.toLocaleString() + '人';
+                                        return '初診数: ' + context.parsed.y.toLocaleString() + '人';
                                     }
                                 }
                             }
