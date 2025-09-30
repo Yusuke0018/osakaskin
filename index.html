@@ -2310,6 +2310,18 @@
                 return;
             }
 
+            // 前月データを取得
+            const months = Object.keys(salesData).sort();
+            const currentIndex = months.indexOf(currentMonth);
+            let previousSummary = null;
+            if (currentIndex > 0) {
+                const previousMonth = months[currentIndex - 1];
+                const prevData = salesData[previousMonth];
+                if (prevData && prevData.weekdaySummarySelf) {
+                    previousSummary = prevData.weekdaySummarySelf;
+                }
+            }
+
             const formatAverageCount = (value, unit) => {
                 if (value === null || Number.isNaN(value)) return '-';
                 const rounded = Math.round(value * 10) / 10;
@@ -2320,6 +2332,26 @@
             const formatAverageAmount = (value) => {
                 if (value === null || Number.isNaN(value)) return '-';
                 return '¥' + Math.round(value).toLocaleString();
+            };
+
+            const formatDiff = (current, previous, { isAmount = false } = {}) => {
+                if (previous === null || previous === undefined || current === null || current === undefined) {
+                    return '<span class="text-gray-400">-</span>';
+                }
+                const diff = current - previous;
+                if (!Number.isFinite(diff) || Math.abs(diff) < 0.05) {
+                    return '<span class="text-gray-400">±0</span>';
+                }
+                const sign = diff > 0 ? '+' : '-';
+                const cls = diff > 0 ? 'text-green-600' : 'text-red-600';
+                const absVal = Math.abs(diff);
+                if (isAmount) {
+                    return `<span class="${cls}">${sign}¥${Math.round(absVal).toLocaleString()}</span>`;
+                } else {
+                    const rounded = Math.round(absVal * 10) / 10;
+                    const display = Number.isInteger(rounded) ? rounded.toLocaleString() : rounded.toFixed(1);
+                    return `<span class="${cls}">${sign}${display}</span>`;
+                }
             };
 
             const rows = [];
@@ -2339,6 +2371,25 @@
                 const returnAvg = info.dayCount > 0 ? info.returnCount / info.dayCount : null;
                 const treatmentCountAvg = info.dayCount > 0 ? info.treatmentCount / info.dayCount : null;
                 const treatmentAmountAvg = info.dayCount > 0 ? info.treatmentAmount / info.dayCount : null;
+
+                // 前月の平均を計算
+                let prevInitialAvg = null;
+                let prevReturnAvg = null;
+                let prevTreatmentCountAvg = null;
+                let prevTreatmentAmountAvg = null;
+                if (previousSummary && previousSummary[key] && previousSummary[key].dayCount > 0) {
+                    const prevInfo = previousSummary[key];
+                    prevInitialAvg = prevInfo.initialCount / prevInfo.dayCount;
+                    prevReturnAvg = prevInfo.returnCount / prevInfo.dayCount;
+                    prevTreatmentCountAvg = prevInfo.treatmentCount / prevInfo.dayCount;
+                    prevTreatmentAmountAvg = prevInfo.treatmentAmount / prevInfo.dayCount;
+                }
+
+                const initialDiff = formatDiff(initialAvg, prevInitialAvg);
+                const returnDiff = formatDiff(returnAvg, prevReturnAvg);
+                const treatmentCountDiff = formatDiff(treatmentCountAvg, prevTreatmentCountAvg);
+                const treatmentAmountDiff = formatDiff(treatmentAmountAvg, prevTreatmentAmountAvg, { isAmount: true });
+
                 chartLabels.push(weekdayLabel);
                 const roundedInitial = Number.isFinite(initialAvg) ? Math.round(initialAvg * 10) / 10 : 0;
                 const roundedReturn = Number.isFinite(returnAvg) ? Math.round(returnAvg * 10) / 10 : 0;
@@ -2353,10 +2404,22 @@
                     <tr class="border-b last:border-0">
                         <td class="py-3 pr-3 align-middle">${weekdayLabel}</td>
                         <td class="py-3 pr-3 text-right align-middle">${info.dayCount.toLocaleString()}日</td>
-                        <td class="py-3 pr-3 text-right align-middle">${formatAverageCount(initialAvg, '件')}</td>
-                        <td class="py-3 pr-3 text-right align-middle">${formatAverageCount(returnAvg, '件')}</td>
-                        <td class="py-3 pr-3 text-right align-middle">${formatAverageCount(treatmentCountAvg, '件')}</td>
-                        <td class="py-3 text-right align-middle">${formatAverageAmount(treatmentAmountAvg)}</td>
+                        <td class="py-3 pr-3 text-right align-middle">
+                            <div class="font-semibold text-gray-800">${formatAverageCount(initialAvg, '件')}</div>
+                            <div class="text-xs mt-1">${initialDiff}</div>
+                        </td>
+                        <td class="py-3 pr-3 text-right align-middle">
+                            <div class="font-semibold text-gray-800">${formatAverageCount(returnAvg, '件')}</div>
+                            <div class="text-xs mt-1">${returnDiff}</div>
+                        </td>
+                        <td class="py-3 pr-3 text-right align-middle">
+                            <div class="font-semibold text-gray-800">${formatAverageCount(treatmentCountAvg, '件')}</div>
+                            <div class="text-xs mt-1">${treatmentCountDiff}</div>
+                        </td>
+                        <td class="py-3 text-right align-middle">
+                            <div class="font-semibold text-gray-800">${formatAverageAmount(treatmentAmountAvg)}</div>
+                            <div class="text-xs mt-1">${treatmentAmountDiff}</div>
+                        </td>
                     </tr>
                 `);
             });
