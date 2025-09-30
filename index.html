@@ -3868,37 +3868,34 @@
                 let insReturn = 0;
                 let insRev = 0;
 
-                // 自費データから集計
-                if (selfPayData && selfPayData.weekdaySummarySelf) {
-                    Object.entries(selfPayData.weekdaySummarySelf).forEach(([weekday, info]) => {
-                        if (info.dayNumbers && info.dayNumbers.includes(day)) {
-                            // その曜日の平均を使用
-                            const dayCount = info.dayCount || 1;
-                            selfPayFirst += Math.round(info.initialCount / dayCount);
-                            selfPayReturn += Math.round(info.returnCount / dayCount);
-                            selfPayRev += Math.round(info.grandAmount / dayCount);
-                        }
-                    });
+                // 自費データから集計 - dailyRecordsを使用
+                if (selfPayData && selfPayData.dailyRecords) {
+                    const dayRecord = selfPayData.dailyRecords[day];
+                    if (dayRecord) {
+                        selfPayFirst = dayRecord.initialCount || 0;
+                        selfPayReturn = dayRecord.returnCount || 0;
+                        selfPayRev = dayRecord.grandTotal || 0;
+                    }
                 }
 
                 // 保険データから集計
-                let isInsuranceBusinessDay = false;
                 if (insData && insData.weekdaySummary) {
-                    Object.entries(insData.weekdaySummary).forEach(([weekday, info]) => {
+                    let dayFound = false;
+
+                    // その日の曜日データを探す
+                    for (const [weekday, info] of Object.entries(insData.weekdaySummary)) {
                         if (info.dayNumbers && info.dayNumbers.includes(day)) {
-                            isInsuranceBusinessDay = true;
-                            // その曜日の平均を使用
+                            dayFound = true;
+                            // その曜日の1日あたりの平均値を計算
                             const dayCount = info.dayCount || 1;
-                            const avgFirstVisit = Math.round(info.firstVisitCount / dayCount);
-                            const avgReturnVisit = Math.round(info.returnVisitCount / dayCount);
-
-                            insFirst += avgFirstVisit;
-                            insReturn += avgReturnVisit;
+                            insFirst = Math.round(info.firstVisitCount / dayCount);
+                            insReturn = Math.round(info.returnVisitCount / dayCount);
+                            break; // 見つかったらループを抜ける
                         }
-                    });
+                    }
 
-                    // 売上は営業日で均等按分
-                    if (isInsuranceBusinessDay && insData.medicalRevenue) {
+                    // 売上は営業日で均等按分（その日が営業日の場合のみ）
+                    if (dayFound && insData.medicalRevenue && totalInsuranceBusinessDays > 0) {
                         insRev = Math.round(insData.medicalRevenue / totalInsuranceBusinessDays);
                     }
                 }
