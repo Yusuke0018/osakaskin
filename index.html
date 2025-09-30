@@ -3788,7 +3788,7 @@
 
             // 自費と保険のデータを取得
             const selfPayData = salesData[currentMonth];
-            const insuranceData = window.insuranceData[currentMonth];
+            const insData = insuranceData[currentMonth];
 
             // 月間サマリーを計算
             let totalRevenue = 0;
@@ -3812,11 +3812,11 @@
             }
 
             // 保険データから集計
-            if (insuranceData) {
-                insuranceRevenue = insuranceData.medicalRevenue || 0;
+            if (insData) {
+                insuranceRevenue = insData.medicalRevenue || 0;
                 totalRevenue += insuranceRevenue;
-                totalFirstVisit += insuranceData.newPatientCount || 0;
-                totalReturnVisit += (insuranceData.firstVisitCount || 0) + (insuranceData.returnVisitCount || 0);
+                totalFirstVisit += insData.newPatientCount || 0;
+                totalReturnVisit += (insData.firstVisitCount || 0) + (insData.returnVisitCount || 0);
             }
 
             // サマリーカードに表示
@@ -3866,11 +3866,11 @@
                 }
 
                 // 保険データから集計（曜日別サマリーがある場合）
-                const insuranceData = window.insuranceData[currentMonth];
-                if (insuranceData && insuranceData.weekdaySummary) {
+                const insData = insuranceData[currentMonth];
+                if (insData && insData.weekdaySummary) {
                     // その日が営業日かチェック
                     let isDayFound = false;
-                    Object.entries(insuranceData.weekdaySummary).forEach(([weekday, info]) => {
+                    Object.entries(insData.weekdaySummary).forEach(([weekday, info]) => {
                         if (info.dayNumbers && info.dayNumbers.includes(day)) {
                             isDayFound = true;
                             // 保険の初診・再診件数
@@ -3880,16 +3880,16 @@
                     });
 
                     // その日が営業日の場合、売上を按分
-                    if (isDayFound && insuranceData.medicalRevenue) {
+                    if (isDayFound && insData.medicalRevenue) {
                         // 全営業日数を計算
                         const allBusinessDays = new Set();
-                        Object.values(insuranceData.weekdaySummary).forEach(info => {
+                        Object.values(insData.weekdaySummary).forEach(info => {
                             if (info.dayNumbers) {
                                 info.dayNumbers.forEach(d => allBusinessDays.add(d));
                             }
                         });
                         const totalBusinessDays = allBusinessDays.size || 1;
-                        insRev = insuranceData.medicalRevenue / totalBusinessDays;
+                        insRev = insData.medicalRevenue / totalBusinessDays;
                     }
                 }
 
@@ -4058,9 +4058,9 @@
 
             // 3. 売上比率（円グラフ）
             const selfPayData = salesData[currentMonth];
-            const insuranceData = window.insuranceData[currentMonth];
+            const insData = insuranceData[currentMonth];
             const selfPayRevenue = selfPayData?.totals?.grand?.amount || 0;
-            const insuranceRevenue = insuranceData?.medicalRevenue || 0;
+            const insuranceRevenue = insData?.medicalRevenue || 0;
 
             const ratioCanvas = document.getElementById('overallRevenueRatioChart');
             if (ratioCanvas && (selfPayRevenue > 0 || insuranceRevenue > 0)) {
@@ -4113,9 +4113,9 @@
                 });
             }
 
-            if (insuranceData) {
-                totalFirst += insuranceData.newPatientCount || 0;
-                totalReturn += (insuranceData.firstVisitCount || 0) + (insuranceData.returnVisitCount || 0);
+            if (insData) {
+                totalFirst += insData.newPatientCount || 0;
+                totalReturn += (insData.firstVisitCount || 0) + (insData.returnVisitCount || 0);
             }
 
             const visitRatioCanvas = document.getElementById('overallVisitRatioChart');
