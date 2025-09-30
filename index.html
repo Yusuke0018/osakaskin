@@ -3617,7 +3617,7 @@
 
         // 保険日別データ処理
         function processInsuranceDailyData(rows, formattedMonth) {
-            console.log('Processing daily insurance data for:', formattedMonth);
+            console.log('=== Processing daily insurance data for:', formattedMonth, '===');
 
             const { y, m } = parseFormattedYearMonth(formattedMonth);
 
@@ -3640,11 +3640,13 @@
 
             // ヘッダー行から列インデックスを特定（2行目がヘッダー）
             const header = rows[1] || [];
+            console.log('Header:', header);
             const dayCol = 0; // 日
             const totalPatientCol = header.findIndex(c => c.includes('受診') || c.includes('件数')) || 1;
             const firstVisitCol = header.findIndex(c => c.includes('初診')) || 2;
             const returnVisitCol = header.findIndex(c => c.includes('再診')) || 3;
             const pointsCol = header.findIndex(c => c.includes('保険点数')) || 5;
+            console.log('Column indices - totalPatient:', totalPatientCol, 'firstVisit:', firstVisitCol, 'returnVisit:', returnVisitCol, 'points:', pointsCol);
 
             let totalRevenue = 0;
             let totalFirstVisit = 0;
@@ -3690,6 +3692,8 @@
                 const points = parseIntSafe(r[pointsCol]);
                 const revenue = points * 10; // 保険点数の10倍が売上
 
+                console.log(`Day ${day} (${dateStr}): patients=${totalPatients}, first=${firstVisit}, return=${returnVisit}, points=${points}, revenue=${revenue}`);
+
                 monthData.dailyRecords[dateStr] = {
                     day: day,
                     totalPatients: totalPatients,
@@ -3700,6 +3704,9 @@
                 };
             }
 
+            console.log('Total daily records created:', Object.keys(monthData.dailyRecords).length);
+            console.log('Daily records:', monthData.dailyRecords);
+
             // 月次合計を設定
             if (totalRevenue > 0) {
                 monthData.medicalRevenue = totalRevenue;
@@ -3707,6 +3714,7 @@
                 // 日別データから合計を計算
                 monthData.medicalRevenue = Object.values(monthData.dailyRecords).reduce((sum, d) => sum + (d.revenue || 0), 0);
             }
+            console.log('Monthly total revenue:', monthData.medicalRevenue);
 
             if (totalFirstVisit > 0) {
                 monthData.firstVisitCount = totalFirstVisit;
