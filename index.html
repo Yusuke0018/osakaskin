@@ -3709,16 +3709,20 @@
             if (emptyStateEl) emptyStateEl.classList.add('hidden');
             if (contentEl) contentEl.classList.remove('hidden');
 
+            // 保険診療データセクションの表示制御
+            const insuranceDataSection = document.querySelector('#insuranceContent > .bg-white:first-of-type');
+
             if (hasInsurance) {
                 if (noInsuranceEl) noInsuranceEl.classList.add('hidden');
                 if (chartArea) chartArea.classList.remove('hidden');
+                if (insuranceDataSection) insuranceDataSection.classList.remove('hidden');
 
                 const data = insuranceData[currentMonth];
                 const formatAmount = (amount) => '¥' + amount.toLocaleString();
                 const formatCount = (count) => count.toLocaleString() + '件';
                 const formatPeople = (count) => count.toLocaleString() + '人';
 
-                document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue);
+                document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue || 0);
                 document.getElementById('firstVisitCount').textContent = formatCount(data.firstVisitCount);
                 document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
                 document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
@@ -3784,12 +3788,16 @@
                 displayInsuranceComparison(currentMonth);
                 updateInsuranceCharts();
             } else {
-                if (noInsuranceEl) {
+                // 保険データがない場合は保険診療データセクションを非表示
+                if (insuranceDataSection) insuranceDataSection.classList.add('hidden');
+                if (noInsuranceEl && !hasDisease) {
                     noInsuranceEl.classList.remove('hidden');
                     const messageEl = noInsuranceEl.querySelector('p');
                     if (messageEl) {
-                        messageEl.textContent = '保険データは未読み込みですが、最新の傷病名ランキングを表示しています。';
+                        messageEl.textContent = 'この月の保険データはまだアップロードされていません';
                     }
+                } else if (noInsuranceEl) {
+                    noInsuranceEl.classList.add('hidden');
                 }
                 if (chartArea) chartArea.classList.add('hidden');
                 if (weekdaySection) weekdaySection.classList.add('hidden');
