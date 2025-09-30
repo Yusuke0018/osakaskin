@@ -4585,23 +4585,23 @@
                     datasets: [{
                         label: '自費初診',
                         data: selfPayFirstVisits,
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                        stack: 'first'
-                    }, {
-                        label: '保険初診',
-                        data: insuranceFirstVisits,
-                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
-                        stack: 'first'
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        stack: 'selfPay'
                     }, {
                         label: '自費再診',
                         data: selfPayReturnVisits,
-                        backgroundColor: 'rgba(251, 146, 60, 0.7)',
-                        stack: 'return'
+                        backgroundColor: 'rgba(147, 197, 253, 0.8)',
+                        stack: 'selfPay'
+                    }, {
+                        label: '保険初診',
+                        data: insuranceFirstVisits,
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        stack: 'insurance'
                     }, {
                         label: '保険再診',
                         data: insuranceReturnVisits,
-                        backgroundColor: 'rgba(236, 72, 153, 0.7)',
-                        stack: 'return'
+                        backgroundColor: 'rgba(110, 231, 183, 0.8)',
+                        stack: 'insurance'
                     }]
                 },
                 options: {
@@ -4616,9 +4616,9 @@
                                 },
                                 footer: function(tooltipItems) {
                                     const index = tooltipItems[0].dataIndex;
-                                    const totalFirst = selfPayFirstVisits[index] + insuranceFirstVisits[index];
-                                    const totalReturn = selfPayReturnVisits[index] + insuranceReturnVisits[index];
-                                    return '初診合計: ' + totalFirst.toLocaleString() + '件\n再診合計: ' + totalReturn.toLocaleString() + '件';
+                                    const selfPayTotal = selfPayFirstVisits[index] + selfPayReturnVisits[index];
+                                    const insuranceTotal = insuranceFirstVisits[index] + insuranceReturnVisits[index];
+                                    return '自費合計: ' + selfPayTotal.toLocaleString() + '件\n保険合計: ' + insuranceTotal.toLocaleString() + '件';
                                 }
                             }
                         }
