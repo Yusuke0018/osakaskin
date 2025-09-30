@@ -91,22 +91,27 @@
                     <div class="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">総売上</p>
                         <p id="overallTotalRevenue" class="text-2xl font-bold text-purple-700 text-center">-</p>
+                        <p id="overallTotalRevenueComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                     <div class="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">自費売上</p>
                         <p id="overallSelfPayRevenue" class="text-2xl font-bold text-blue-700 text-center">-</p>
+                        <p id="overallSelfPayRevenueComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                     <div class="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">保険売上</p>
                         <p id="overallInsuranceRevenue" class="text-2xl font-bold text-green-700 text-center">-</p>
+                        <p id="overallInsuranceRevenueComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                     <div class="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">総初診数</p>
                         <p id="overallFirstVisit" class="text-2xl font-bold text-orange-700 text-center">-</p>
+                        <p id="overallFirstVisitComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                     <div class="p-4 bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">総再診数</p>
                         <p id="overallReturnVisit" class="text-2xl font-bold text-pink-700 text-center">-</p>
+                        <p id="overallReturnVisitComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                 </div>
             </div>
@@ -3937,6 +3942,49 @@
             document.getElementById('overallInsuranceRevenue').textContent = formatAmount(insuranceRevenue);
             document.getElementById('overallFirstVisit').textContent = formatCount(totalFirstVisit);
             document.getElementById('overallReturnVisit').textContent = formatCount(totalReturnVisit);
+
+            // 前月比の計算と表示（月間サマリーのみ）
+            const prevMonth = getPreviousMonth(currentMonth);
+            if (prevMonth && (salesData[prevMonth] || insuranceData[prevMonth])) {
+                const prevSelfPayData = salesData[prevMonth];
+                const prevInsData = insuranceData[prevMonth];
+
+                let prevTotalRevenue = 0;
+                let prevSelfPayRevenue = 0;
+                let prevInsuranceRevenue = 0;
+                let prevTotalFirstVisit = 0;
+                let prevTotalReturnVisit = 0;
+
+                if (prevSelfPayData) {
+                    prevSelfPayRevenue = prevSelfPayData.totals?.grand?.amount || 0;
+                    prevTotalRevenue += prevSelfPayRevenue;
+                    if (prevSelfPayData.weekdaySummarySelf) {
+                        Object.values(prevSelfPayData.weekdaySummarySelf).forEach(day => {
+                            prevTotalFirstVisit += day.initialCount || 0;
+                            prevTotalReturnVisit += day.returnCount || 0;
+                        });
+                    }
+                }
+
+                if (prevInsData) {
+                    prevInsuranceRevenue = prevInsData.medicalRevenue || 0;
+                    prevTotalRevenue += prevInsuranceRevenue;
+                    prevTotalFirstVisit += prevInsData.newPatientCount || 0;
+                    prevTotalReturnVisit += (prevInsData.firstVisitCount || 0) + (prevInsData.returnVisitCount || 0);
+                }
+
+                displayComparison('overallTotalRevenueComparison', totalRevenue, prevTotalRevenue);
+                displayComparison('overallSelfPayRevenueComparison', selfPayRevenue, prevSelfPayRevenue);
+                displayComparison('overallInsuranceRevenueComparison', insuranceRevenue, prevInsuranceRevenue);
+                displayComparison('overallFirstVisitComparison', totalFirstVisit, prevTotalFirstVisit, '件');
+                displayComparison('overallReturnVisitComparison', totalReturnVisit, prevTotalReturnVisit, '件');
+            } else {
+                document.getElementById('overallTotalRevenueComparison').textContent = '';
+                document.getElementById('overallSelfPayRevenueComparison').textContent = '';
+                document.getElementById('overallInsuranceRevenueComparison').textContent = '';
+                document.getElementById('overallFirstVisitComparison').textContent = '';
+                document.getElementById('overallReturnVisitComparison').textContent = '';
+            }
 
             // 日別データの生成
             generateDailyOverallData();
