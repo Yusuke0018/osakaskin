@@ -3969,6 +3969,42 @@
             const selfPayData = salesData[currentMonth];
             const insData = insuranceData[currentMonth];
 
+            // 日別保険データの参照マップを作成
+            const insuranceDailyRecords = insData && insData.dailyRecords ? insData.dailyRecords : {};
+            const hasInsuranceDailyRecords = insuranceDailyRecords && Object.keys(insuranceDailyRecords).length > 0;
+            const insuranceDailyByDate = hasInsuranceDailyRecords ? new Map() : null;
+            const insuranceDailyByDay = hasInsuranceDailyRecords ? new Map() : null;
+
+            if (hasInsuranceDailyRecords) {
+                Object.entries(insuranceDailyRecords).forEach(([key, record]) => {
+                    if (!record) return;
+
+                    if (typeof key === 'string') {
+                        const normalizedKey = key.trim();
+                        if (normalizedKey) {
+                            const baseKey = normalizedKey.split(/[\sT]/)[0] || normalizedKey;
+                            const keyVariants = new Set([normalizedKey, baseKey]);
+
+                            keyVariants.forEach(candidate => {
+                                if (!candidate) return;
+                                insuranceDailyByDate.set(candidate, record);
+                                if (candidate.includes('-')) {
+                                    insuranceDailyByDate.set(candidate.replace(/-/g, '/'), record);
+                                } else if (candidate.includes('/')) {
+                                    insuranceDailyByDate.set(candidate.replace(/\//g, '-'), record);
+                                }
+                            });
+                        }
+                    }
+
+                    const dayValue = record.day ?? record.dayNumber;
+                    const dayNum = Number(dayValue);
+                    if (Number.isFinite(dayNum)) {
+                        insuranceDailyByDay.set(dayNum, record);
+                    }
+                });
+            }
+
             // 月間サマリーを計算
             let totalRevenue = 0;
             let selfPayRevenue = 0;
@@ -4107,12 +4143,21 @@
 
                 // 保険データから集計
                 if (insData) {
-                    // 日別レコードがある場合はそちらを優先
-                    if (insData.dailyRecords && insData.dailyRecords[dateStr]) {
-                        const dayRecord = insData.dailyRecords[dateStr];
-                        insFirst = dayRecord.firstVisit || 0;
-                        insReturn = dayRecord.returnVisit || 0;
-                        insRev = dayRecord.revenue || 0;
+                    if (hasInsuranceDailyRecords) {
+                        let dayRecord = insuranceDailyByDate ? insuranceDailyByDate.get(dateStr) : null;
+                        if (!dayRecord && insuranceDailyByDate) {
+                            const compactKey = `${y}-${Number(m)}-${Number(day)}`;
+                            dayRecord = insuranceDailyByDate.get(compactKey);
+                        }
+                        if (!dayRecord && insuranceDailyByDay) {
+                            dayRecord = insuranceDailyByDay.get(day);
+                        }
+
+                        if (dayRecord) {
+                            insFirst = dayRecord.firstVisit || 0;
+                            insReturn = dayRecord.returnVisit || 0;
+                            insRev = dayRecord.revenue || 0;
+                        }
                     } else if (insData.weekdaySummary) {
                         // 日別レコードがない場合は曜日別データから計算
                         let dayFound = false;
