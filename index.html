@@ -69,6 +69,9 @@
             <!-- タブナビゲーション -->
             <div class="mt-4 border-t pt-4">
                 <nav class="flex space-x-4" aria-label="ページ切り替え">
+                    <button id="overallTab" onclick="switchTab('overall')" class="px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300">
+                        全体
+                    </button>
                     <button id="selfPayTab" onclick="switchTab('selfPay')" class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg">
                         自費
                     </button>
@@ -78,6 +81,101 @@
                 </nav>
             </div>
         </header>
+
+        <!-- 全体ページ -->
+        <div id="overallContent" class="hidden">
+            <!-- 月間サマリー -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">月間サマリー</h2>
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div class="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">総売上</p>
+                        <p id="overallTotalRevenue" class="text-2xl font-bold text-purple-700 text-center">-</p>
+                    </div>
+                    <div class="p-4 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">自費売上</p>
+                        <p id="overallSelfPayRevenue" class="text-2xl font-bold text-blue-700 text-center">-</p>
+                    </div>
+                    <div class="p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">保険売上</p>
+                        <p id="overallInsuranceRevenue" class="text-2xl font-bold text-green-700 text-center">-</p>
+                    </div>
+                    <div class="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">総初診数</p>
+                        <p id="overallFirstVisit" class="text-2xl font-bold text-orange-700 text-center">-</p>
+                    </div>
+                    <div class="p-4 bg-gradient-to-br from-pink-50 to-rose-50 rounded-lg">
+                        <p class="text-sm text-gray-600 text-center mb-2">総再診数</p>
+                        <p id="overallReturnVisit" class="text-2xl font-bold text-pink-700 text-center">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日別データテーブル -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">日別データ一覧</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">日付</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">自費初診</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">自費再診</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">保険初診</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">保険再診</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">自費売上</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">保険売上</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">合計売上</th>
+                            </tr>
+                        </thead>
+                        <tbody id="overallDailyTable" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- グラフエリア -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">日別推移グラフ</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 初診・再診推移 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">初診・再診数推移</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="overallVisitChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 売上推移 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">日別売上推移</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="overallRevenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 売上内訳グラフ -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">売上内訳分析</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 自費vs保険比率 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">自費・保険比率</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="overallRevenueRatioChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 初診・再診比率 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">初診・再診比率</h3>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="overallVisitRatioChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- 自費ページ -->
         <div id="selfPayContent" class="hidden">
@@ -1416,31 +1514,40 @@
         // タブ切り替え処理
         function switchTab(tab, options = {}) {
             currentTab = tab;
-            
+
             // タブのスタイル更新
+            const overallTab = document.getElementById('overallTab');
             const selfPayTab = document.getElementById('selfPayTab');
             const insuranceTab = document.getElementById('insuranceTab');
-            
-            if (tab === 'selfPay') {
-                selfPayTab.className = 'px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg';
-                insuranceTab.className = 'px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300';
-                
-                // コンテンツの表示切り替え
+
+            const activeClass = 'px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg';
+            const inactiveClass = 'px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300';
+
+            // すべてのタブを非アクティブに
+            overallTab.className = inactiveClass;
+            selfPayTab.className = inactiveClass;
+            insuranceTab.className = inactiveClass;
+
+            // すべてのコンテンツを非表示に
+            document.getElementById('overallContent').classList.add('hidden');
+            document.getElementById('selfPayContent').classList.add('hidden');
+            document.getElementById('insuranceContent').classList.add('hidden');
+
+            if (tab === 'overall') {
+                overallTab.className = activeClass;
+                document.getElementById('overallContent').classList.remove('hidden');
+                if (!options.skipDisplay) {
+                    displayOverallData();
+                }
+            } else if (tab === 'selfPay') {
+                selfPayTab.className = activeClass;
                 document.getElementById('selfPayContent').classList.remove('hidden');
-                document.getElementById('insuranceContent').classList.add('hidden');
-                
-                // 自費データがある場合は表示
                 if (currentMonth && salesData[currentMonth]) {
                     displayData();
                 }
-            } else {
-                selfPayTab.className = 'px-6 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300';
-                insuranceTab.className = 'px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg';
-                
-                // コンテンツの表示切り替え
-                document.getElementById('selfPayContent').classList.add('hidden');
+            } else if (tab === 'insurance') {
+                insuranceTab.className = activeClass;
                 document.getElementById('insuranceContent').classList.remove('hidden');
-                
                 if (!options.skipDisplay) {
                     displayInsuranceData();
                 }
@@ -2013,7 +2120,9 @@
         function handleMonthChange(event) {
             currentMonth = event.target.value;
             if (currentMonth) {
-                if (currentTab === 'selfPay') {
+                if (currentTab === 'overall') {
+                    displayOverallData();
+                } else if (currentTab === 'selfPay') {
                     if (salesData[currentMonth]) {
                         displayData();
                     } else {
@@ -3673,7 +3782,371 @@
                 // ユーザー通知は抑制（他タブ操作を継続可能に）
             }
         }
-        
+
+        // 全体データ表示
+        function displayOverallData() {
+            if (!currentMonth) return;
+
+            const formatAmount = (amount) => '¥' + amount.toLocaleString();
+            const formatCount = (count) => count.toLocaleString() + '件';
+
+            // 自費と保険のデータを取得
+            const selfPayData = salesData[currentMonth];
+            const insuranceData = window.insuranceData[currentMonth];
+
+            // 月間サマリーを計算
+            let totalRevenue = 0;
+            let selfPayRevenue = 0;
+            let insuranceRevenue = 0;
+            let totalFirstVisit = 0;
+            let totalReturnVisit = 0;
+
+            // 自費データから集計
+            if (selfPayData) {
+                selfPayRevenue = selfPayData.totals?.grand?.amount || 0;
+                totalRevenue += selfPayRevenue;
+
+                // 自費の初診・再診件数（曜日別データから集計）
+                if (selfPayData.weekdaySummary) {
+                    Object.values(selfPayData.weekdaySummary).forEach(day => {
+                        totalFirstVisit += day.initialCount || 0;
+                        totalReturnVisit += day.returnCount || 0;
+                    });
+                }
+            }
+
+            // 保険データから集計
+            if (insuranceData) {
+                insuranceRevenue = insuranceData.medicalRevenue || 0;
+                totalRevenue += insuranceRevenue;
+                totalFirstVisit += insuranceData.newPatientCount || 0;
+                totalReturnVisit += (insuranceData.firstVisitCount || 0) + (insuranceData.returnVisitCount || 0);
+            }
+
+            // サマリーカードに表示
+            document.getElementById('overallTotalRevenue').textContent = formatAmount(totalRevenue);
+            document.getElementById('overallSelfPayRevenue').textContent = formatAmount(selfPayRevenue);
+            document.getElementById('overallInsuranceRevenue').textContent = formatAmount(insuranceRevenue);
+            document.getElementById('overallFirstVisit').textContent = formatCount(totalFirstVisit);
+            document.getElementById('overallReturnVisit').textContent = formatCount(totalReturnVisit);
+
+            // 日別データの生成
+            generateDailyOverallData();
+
+            // グラフの描画
+            renderOverallCharts();
+        }
+
+        // 日別の全体データを生成
+        function generateDailyOverallData() {
+            if (!currentMonth) return;
+
+            const { y, m } = parseFormattedYearMonth(currentMonth);
+            const daysInMonth = new Date(y, m, 0).getDate();
+
+            const dailyData = [];
+
+            // 各日付のデータを集計
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                let selfPayFirst = 0;
+                let selfPayReturn = 0;
+                let selfPayRev = 0;
+                let insFirst = 0;
+                let insReturn = 0;
+                let insRev = 0;
+
+                // 自費データから集計
+                const selfPayData = salesData[currentMonth];
+                if (selfPayData && selfPayData.weekdaySummary) {
+                    Object.entries(selfPayData.weekdaySummary).forEach(([weekday, info]) => {
+                        if (info.dayNumbers && info.dayNumbers.includes(day)) {
+                            selfPayFirst += info.initialCount || 0;
+                            selfPayReturn += info.returnCount || 0;
+                            selfPayRev += info.amount || 0;
+                        }
+                    });
+                }
+
+                // 保険データから集計（曜日別サマリーがある場合）
+                const insuranceData = window.insuranceData[currentMonth];
+                if (insuranceData && insuranceData.weekdaySummary) {
+                    Object.entries(insuranceData.weekdaySummary).forEach(([weekday, info]) => {
+                        if (info.dayNumbers && info.dayNumbers.includes(day)) {
+                            insFirst += info.firstVisitCount || 0;
+                            insReturn += info.returnVisitCount || 0;
+                            insRev += info.revenue || 0;
+                        }
+                    });
+                }
+
+                const totalRev = selfPayRev + insRev;
+
+                // データがある日のみ追加
+                if (selfPayFirst > 0 || selfPayReturn > 0 || insFirst > 0 || insReturn > 0 || totalRev > 0) {
+                    dailyData.push({
+                        date: dateStr,
+                        day: day,
+                        selfPayFirst,
+                        selfPayReturn,
+                        insFirst,
+                        insReturn,
+                        selfPayRev,
+                        insRev,
+                        totalRev
+                    });
+                }
+            }
+
+            // テーブルに表示
+            const tableBody = document.getElementById('overallDailyTable');
+            tableBody.innerHTML = '';
+
+            dailyData.forEach(data => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-900">${data.date}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">${data.selfPayFirst}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">${data.selfPayReturn}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">${data.insFirst}</td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-900">${data.insReturn}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-blue-700">¥${data.selfPayRev.toLocaleString()}</td>
+                    <td class="px-4 py-3 text-sm text-right font-medium text-green-700">¥${data.insRev.toLocaleString()}</td>
+                    <td class="px-4 py-3 text-sm text-right font-bold text-purple-700">¥${data.totalRev.toLocaleString()}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // グラフ用にグローバルに保存
+            window.overallDailyData = dailyData;
+        }
+
+        // 全体タブのグラフを描画
+        function renderOverallCharts() {
+            if (!window.overallDailyData || window.overallDailyData.length === 0) return;
+
+            const dailyData = window.overallDailyData;
+            const labels = dailyData.map(d => d.date);
+
+            // 1. 初診・再診数推移グラフ
+            const visitCanvas = document.getElementById('overallVisitChart');
+            if (visitCanvas) {
+                const ctx = visitCanvas.getContext('2d');
+                if (window.overallVisitChart) {
+                    window.overallVisitChart.destroy();
+                }
+                window.overallVisitChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '自費初診',
+                            data: dailyData.map(d => d.selfPayFirst),
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            stack: 'first'
+                        }, {
+                            label: '保険初診',
+                            data: dailyData.map(d => d.insFirst),
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            stack: 'first'
+                        }, {
+                            label: '自費再診',
+                            data: dailyData.map(d => d.selfPayReturn),
+                            backgroundColor: 'rgba(251, 146, 60, 0.7)',
+                            stack: 'return'
+                        }, {
+                            label: '保険再診',
+                            data: dailyData.map(d => d.insReturn),
+                            backgroundColor: 'rgba(236, 72, 153, 0.7)',
+                            stack: 'return'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + context.parsed.y + '件';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return value + '件';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 2. 日別売上推移グラフ
+            const revenueCanvas = document.getElementById('overallRevenueChart');
+            if (revenueCanvas) {
+                const ctx = revenueCanvas.getContext('2d');
+                if (window.overallRevenueChart) {
+                    window.overallRevenueChart.destroy();
+                }
+                window.overallRevenueChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '自費売上',
+                            data: dailyData.map(d => d.selfPayRev),
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            stack: 'revenue'
+                        }, {
+                            label: '保険売上',
+                            data: dailyData.map(d => d.insRev),
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                            stack: 'revenue'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ¥' + context.parsed.y.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '¥' + (value / 1000).toFixed(0) + 'K';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 3. 売上比率（円グラフ）
+            const selfPayData = salesData[currentMonth];
+            const insuranceData = window.insuranceData[currentMonth];
+            const selfPayRevenue = selfPayData?.totals?.grand?.amount || 0;
+            const insuranceRevenue = insuranceData?.medicalRevenue || 0;
+
+            const ratioCanvas = document.getElementById('overallRevenueRatioChart');
+            if (ratioCanvas && (selfPayRevenue > 0 || insuranceRevenue > 0)) {
+                const ctx = ratioCanvas.getContext('2d');
+                if (window.overallRevenueRatioChart) {
+                    window.overallRevenueRatioChart.destroy();
+                }
+                window.overallRevenueRatioChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['自費', '保険'],
+                        datasets: [{
+                            data: [selfPayRevenue, insuranceRevenue],
+                            backgroundColor: [
+                                'rgba(59, 130, 246, 0.8)',
+                                'rgba(16, 185, 129, 0.8)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return label + ': ¥' + value.toLocaleString() + ' (' + percentage + '%)';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 4. 初診・再診比率（円グラフ）
+            let totalFirst = 0;
+            let totalReturn = 0;
+
+            if (selfPayData && selfPayData.weekdaySummary) {
+                Object.values(selfPayData.weekdaySummary).forEach(day => {
+                    totalFirst += day.initialCount || 0;
+                    totalReturn += day.returnCount || 0;
+                });
+            }
+
+            if (insuranceData) {
+                totalFirst += insuranceData.newPatientCount || 0;
+                totalReturn += (insuranceData.firstVisitCount || 0) + (insuranceData.returnVisitCount || 0);
+            }
+
+            const visitRatioCanvas = document.getElementById('overallVisitRatioChart');
+            if (visitRatioCanvas && (totalFirst > 0 || totalReturn > 0)) {
+                const ctx = visitRatioCanvas.getContext('2d');
+                if (window.overallVisitRatioChart) {
+                    window.overallVisitRatioChart.destroy();
+                }
+                window.overallVisitRatioChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['初診', '再診'],
+                        datasets: [{
+                            data: [totalFirst, totalReturn],
+                            backgroundColor: [
+                                'rgba(251, 146, 60, 0.8)',
+                                'rgba(236, 72, 153, 0.8)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'top' },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.parsed || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return label + ': ' + value.toLocaleString() + '件 (' + percentage + '%)';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
         // 保険データ表示
         function displayInsuranceData() {
             const contentEl = document.getElementById('insuranceContent');
