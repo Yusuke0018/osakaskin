@@ -3896,6 +3896,24 @@
             }
         }
 
+        // 前月を取得する関数
+        function getPreviousMonth(monthStr) {
+            // monthStr format: "YYYY年MM月"
+            const match = monthStr.match(/(\d{4})年(\d{2})月/);
+            if (!match) return null;
+
+            let year = parseInt(match[1]);
+            let month = parseInt(match[2]);
+
+            month--;
+            if (month === 0) {
+                month = 12;
+                year--;
+            }
+
+            return `${year}年${month.toString().padStart(2, '0')}月`;
+        }
+
         // 全体データ表示
         function displayOverallData() {
             if (!currentMonth) return;
