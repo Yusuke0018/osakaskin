@@ -4169,7 +4169,7 @@
             if (!window.overallDailyData || window.overallDailyData.length === 0) return;
 
             const dailyData = window.overallDailyData;
-            const labels = dailyData.map(d => d.date);
+            const labels = dailyData.map(d => String(d.day));
 
             // 1. 初診・再診数推移グラフ
             const visitCanvas = document.getElementById('overallVisitChart');
