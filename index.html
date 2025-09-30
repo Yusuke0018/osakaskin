@@ -116,6 +116,14 @@
                 </div>
             </div>
 
+            <!-- 月毎売上推移グラフ -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">月毎売上推移</h2>
+                <div style="height: 400px; position: relative;">
+                    <canvas id="overallMonthlyRevenueChart"></canvas>
+                </div>
+            </div>
+
             <!-- 日別データテーブル -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">日別データ一覧</h2>
@@ -494,7 +502,7 @@
         </div>
 
         <!-- 初期メッセージ -->
-        <div id="emptyState" class="text-center py-12">
+        <div id="emptyState" class="text-center py-12 hidden">
             <p class="text-gray-500 text-lg">CSVファイルをアップロードしてください</p>
         </div>
         
@@ -4032,6 +4040,9 @@
 
             // グラフの描画
             renderOverallCharts();
+
+            // 月次グラフの描画
+            renderMonthlyRevenueChart();
         }
 
         // 日別の全体データを生成
@@ -4375,6 +4386,115 @@
                     }
                 });
             }
+        }
+
+        // 月次売上推移グラフを描画
+        function renderMonthlyRevenueChart() {
+            // 全月のデータを取得して時系列順にソート
+            const months = [];
+
+            // salesDataとinsuranceDataから全月を収集
+            Object.keys(salesData).forEach(month => {
+                if (!months.includes(month)) months.push(month);
+            });
+            Object.keys(insuranceData).forEach(month => {
+                if (!months.includes(month)) months.push(month);
+            });
+
+            // 月をソート (YYYY年MM月形式)
+            months.sort((a, b) => {
+                const matchA = a.match(/(\d{4})年(\d{2})月/);
+                const matchB = b.match(/(\d{4})年(\d{2})月/);
+                if (!matchA || !matchB) return 0;
+                const yearA = parseInt(matchA[1]);
+                const monthA = parseInt(matchA[2]);
+                const yearB = parseInt(matchB[1]);
+                const monthB = parseInt(matchB[2]);
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            // 各月の自費・保険・合計売上を計算
+            const selfPayRevenues = [];
+            const insuranceRevenues = [];
+            const totalRevenues = [];
+
+            months.forEach(month => {
+                let selfPayRev = 0;
+                let insRev = 0;
+
+                // 自費売上
+                if (salesData[month] && salesData[month].totals && salesData[month].totals.grand) {
+                    selfPayRev = salesData[month].totals.grand.amount || 0;
+                }
+
+                // 保険売上
+                if (insuranceData[month]) {
+                    insRev = insuranceData[month].medicalRevenue || 0;
+                }
+
+                selfPayRevenues.push(selfPayRev);
+                insuranceRevenues.push(insRev);
+                totalRevenues.push(selfPayRev + insRev);
+            });
+
+            // グラフ描画
+            const canvas = document.getElementById('overallMonthlyRevenueChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (window.overallMonthlyRevenueChart && typeof window.overallMonthlyRevenueChart.destroy === 'function') {
+                window.overallMonthlyRevenueChart.destroy();
+            }
+
+            window.overallMonthlyRevenueChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '自費売上',
+                        data: selfPayRevenues,
+                        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        stack: 'revenue'
+                    }, {
+                        label: '保険売上',
+                        data: insuranceRevenues,
+                        backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                        stack: 'revenue'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ¥' + context.parsed.y.toLocaleString();
+                                },
+                                footer: function(tooltipItems) {
+                                    const index = tooltipItems[0].dataIndex;
+                                    const total = totalRevenues[index];
+                                    return '合計: ¥' + total.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + (value / 1000000).toFixed(1) + 'M';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // 保険データ表示
