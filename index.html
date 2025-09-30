@@ -3655,16 +3655,32 @@
                 const r = rows[i];
                 if (!r || r.length < 2) continue;
 
-                const day = parseIntSafe(r[dayCol]);
-                if (day < 1 || day > 31) continue; // 日付が不正な場合はスキップ
+                // 日付セルから日を抽出（「1」「1日」「2024/09/01」などに対応）
+                let day = 0;
+                const dayCell = r[dayCol] || '';
 
                 // "計" 行の場合は合計として扱う
-                if (r[dayCol] && r[dayCol].includes('計')) {
+                if (dayCell.includes('計')) {
                     totalRevenue = parseIntSafe(r[pointsCol]) * 10;
                     totalFirstVisit = parseIntSafe(r[firstVisitCol]);
                     totalReturnVisit = parseIntSafe(r[returnVisitCol]);
                     continue;
                 }
+
+                // 日付形式に応じてパース
+                if (/^\d{1,2}$/.test(dayCell)) {
+                    // 「1」「2」のような純粋な数字
+                    day = parseIntSafe(dayCell);
+                } else if (/^\d{1,2}日$/.test(dayCell)) {
+                    // 「1日」「2日」のような形式
+                    day = parseIntSafe(dayCell.replace('日', ''));
+                } else if (/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(dayCell)) {
+                    // 「2024/09/01」のような完全な日付形式
+                    const parts = dayCell.split(/[\/\-]/);
+                    day = parseIntSafe(parts[2]);
+                }
+
+                if (day < 1 || day > 31) continue; // 日付が不正な場合はスキップ
 
                 const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -3737,7 +3753,9 @@
                 rows = rows.map(r => r.map(c => (c || '').toString().trim()));
 
                 // 日別データ形式かチェック（1列目が日付の連番）
-                const isDailyFormat = rows.length > 2 && rows[2] && rows[2][0] && /^\d{1,2}$/.test(rows[2][0]);
+                // 「1」「2」のような純粋な数字、「1日」「2日」のような日付、「2024/09/01」のような日付形式に対応
+                const isDailyFormat = rows.length > 2 && rows[2] && rows[2][0] &&
+                    (/^\d{1,2}$/.test(rows[2][0]) || /^\d{1,2}日$/.test(rows[2][0]) || /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(rows[2][0]));
 
                 if (isDailyFormat) {
                     console.log('Detected daily insurance data format');
