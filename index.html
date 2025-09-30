@@ -3995,7 +3995,7 @@
                 insuranceRevenue = insData.medicalRevenue || 0;
                 totalRevenue += insuranceRevenue;
                 totalFirstVisit += insData.newPatientCount || 0;
-                totalReturnVisit += (insData.firstVisitCount || 0) + (insData.returnVisitCount || 0);
+                totalReturnVisit += insData.returnVisitCount || 0;
             }
 
             // サマリーカードに表示
@@ -4032,7 +4032,7 @@
                     prevInsuranceRevenue = prevInsData.medicalRevenue || 0;
                     prevTotalRevenue += prevInsuranceRevenue;
                     prevTotalFirstVisit += prevInsData.newPatientCount || 0;
-                    prevTotalReturnVisit += (prevInsData.firstVisitCount || 0) + (prevInsData.returnVisitCount || 0);
+                    prevTotalReturnVisit += prevInsData.returnVisitCount || 0;
                 }
 
                 displayComparison('overallTotalRevenueComparison', totalRevenue, prevTotalRevenue);
@@ -4560,7 +4560,7 @@
                 // 保険の初診・再診数
                 if (insuranceData[month]) {
                     insFirst = insuranceData[month].newPatientCount || 0;
-                    insReturn = (insuranceData[month].firstVisitCount || 0) + (insuranceData[month].returnVisitCount || 0);
+                    insReturn = insuranceData[month].returnVisitCount || 0;
                 }
 
                 selfPayFirstVisits.push(selfPayFirst);
