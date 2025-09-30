@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Check</title>
+</head>
+<body>
+    <h1>LocalStorage Debug</h1>
+    <pre id="output"></pre>
+    <script>
+        const salesData = JSON.parse(localStorage.getItem('salesData') || '{}');
+        const insuranceData = JSON.parse(localStorage.getItem('insuranceData') || '{}');
+        
+        const output = document.getElementById('output');
+        
+        const months = Object.keys(salesData);
+        if (months.length > 0) {
+            const month = months[months.length - 1];
+            output.textContent += `自費データ (${month}):\n`;
+            output.textContent += `weekdaySummary exists: ${!!salesData[month].weekdaySummary}\n`;
+            if (salesData[month].weekdaySummary) {
+                output.textContent += JSON.stringify(salesData[month].weekdaySummary, null, 2) + '\n\n';
+            }
+        }
+        
+        const insMonths = Object.keys(insuranceData);
+        if (insMonths.length > 0) {
+            const month = insMonths[insMonths.length - 1];
+            output.textContent += `保険データ (${month}):\n`;
+            output.textContent += `weekdaySummary exists: ${!!insuranceData[month].weekdaySummary}\n`;
+            if (insuranceData[month].weekdaySummary) {
+                output.textContent += JSON.stringify(insuranceData[month].weekdaySummary, null, 2);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -3803,8 +3803,8 @@
                 totalRevenue += selfPayRevenue;
 
                 // 自費の初診・再診件数（曜日別データから集計）
-                if (selfPayData.weekdaySummary) {
-                    Object.values(selfPayData.weekdaySummary).forEach(day => {
+                if (selfPayData.weekdaySummarySelf) {
+                    Object.values(selfPayData.weekdaySummarySelf).forEach(day => {
                         totalFirstVisit += day.initialCount || 0;
                         totalReturnVisit += day.returnCount || 0;
                     });
@@ -3842,6 +3842,21 @@
 
             const dailyData = [];
 
+            // 自費と保険の月間データを取得
+            const selfPayData = salesData[currentMonth];
+            const insData = insuranceData[currentMonth];
+
+            // 全営業日のセットを作成（保険データから）
+            const allInsuranceBusinessDays = new Set();
+            if (insData && insData.weekdaySummary) {
+                Object.values(insData.weekdaySummary).forEach(info => {
+                    if (info.dayNumbers) {
+                        info.dayNumbers.forEach(d => allInsuranceBusinessDays.add(d));
+                    }
+                });
+            }
+            const totalInsuranceBusinessDays = allInsuranceBusinessDays.size || 1;
+
             // 各日付のデータを集計
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -3854,44 +3869,37 @@
                 let insRev = 0;
 
                 // 自費データから集計
-                const selfPayData = salesData[currentMonth];
-                if (selfPayData && selfPayData.weekdaySummary) {
-                    Object.entries(selfPayData.weekdaySummary).forEach(([weekday, info]) => {
+                if (selfPayData && selfPayData.weekdaySummarySelf) {
+                    Object.entries(selfPayData.weekdaySummarySelf).forEach(([weekday, info]) => {
                         if (info.dayNumbers && info.dayNumbers.includes(day)) {
-                            selfPayFirst += info.initialCount || 0;
-                            selfPayReturn += info.returnCount || 0;
-                            // 日別売上を平均で按分
+                            // その曜日の平均を使用
                             const dayCount = info.dayCount || 1;
-                            selfPayRev += (info.grandAmount || 0) / dayCount;
+                            selfPayFirst += Math.round(info.initialCount / dayCount);
+                            selfPayReturn += Math.round(info.returnCount / dayCount);
+                            selfPayRev += Math.round(info.grandAmount / dayCount);
                         }
                     });
                 }
 
-                // 保険データから集計（曜日別サマリーがある場合）
-                const insData = insuranceData[currentMonth];
+                // 保険データから集計
+                let isInsuranceBusinessDay = false;
                 if (insData && insData.weekdaySummary) {
-                    // その日が営業日かチェック
-                    let isDayFound = false;
                     Object.entries(insData.weekdaySummary).forEach(([weekday, info]) => {
                         if (info.dayNumbers && info.dayNumbers.includes(day)) {
-                            isDayFound = true;
-                            // 保険の初診・再診件数
-                            insFirst += info.firstVisitCount || 0;
-                            insReturn += info.returnVisitCount || 0;
+                            isInsuranceBusinessDay = true;
+                            // その曜日の平均を使用
+                            const dayCount = info.dayCount || 1;
+                            const avgFirstVisit = Math.round(info.firstVisitCount / dayCount);
+                            const avgReturnVisit = Math.round(info.returnVisitCount / dayCount);
+
+                            insFirst += avgFirstVisit;
+                            insReturn += avgReturnVisit;
                         }
                     });
 
-                    // その日が営業日の場合、売上を按分
-                    if (isDayFound && insData.medicalRevenue) {
-                        // 全営業日数を計算
-                        const allBusinessDays = new Set();
-                        Object.values(insData.weekdaySummary).forEach(info => {
-                            if (info.dayNumbers) {
-                                info.dayNumbers.forEach(d => allBusinessDays.add(d));
-                            }
-                        });
-                        const totalBusinessDays = allBusinessDays.size || 1;
-                        insRev = insData.medicalRevenue / totalBusinessDays;
+                    // 売上は営業日で均等按分
+                    if (isInsuranceBusinessDay && insData.medicalRevenue) {
+                        insRev = Math.round(insData.medicalRevenue / totalInsuranceBusinessDays);
                     }
                 }
 
