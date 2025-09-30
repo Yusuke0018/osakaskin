@@ -960,6 +960,7 @@
         const MIN_SUPPORTED_YEAR = 2025;
         const MAX_SUPPORTED_YEAR = 2100;
         const WEEKDAY_FILE_KEYWORDS = ['gekkei', '月計', '月計表', '01gekkei'];
+        const INSURANCE_DAILY_FILENAME_HINTS = ['shinryouhi', '診療費'];
         const INSURANCE_FILE_KEYWORDS = ['保険', '保険診療', 'レセプト', 'レセ', '診療報酬', '診療費', 'shinryouhi'];
         const DISEASE_FILE_KEYWORDS = ['データ検索', '抽出', '傷病名', '病名', '診断名'];
         const SUM_KEYWORDS = ['合計', '総合計', '総計'];
@@ -1743,13 +1744,21 @@
 
             // ファイルタイプの判定（ファイル名による判定）
             const isDiseaseData = includesAny(filename, DISEASE_FILE_KEYWORDS);
-            const isWeekdayData = includesAny(filename, WEEKDAY_FILE_KEYWORDS) && !isDiseaseData;
+            let isWeekdayData = includesAny(filename, WEEKDAY_FILE_KEYWORDS) && !isDiseaseData;
             let isInsurance = includesAny(filename, INSURANCE_FILE_KEYWORDS) && !isDiseaseData && !isWeekdayData;
             console.log('File type - Weekday:', isWeekdayData, 'Insurance:', isInsurance, 'Disease:', isDiseaseData);
 
             if (!isDiseaseData && !isInsurance && !isWeekdayData) {
                 if (looksLikeInsuranceData(data)) {
                     console.log('Detected insurance data from content');
+                    isInsurance = true;
+                }
+            }
+
+            if (isWeekdayData && includesAny(filename, INSURANCE_DAILY_FILENAME_HINTS)) {
+                console.log('Filename indicates insurance daily data; reclassifying as insurance data');
+                isWeekdayData = false;
+                if (!isDiseaseData) {
                     isInsurance = true;
                 }
             }
