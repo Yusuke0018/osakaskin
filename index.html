@@ -260,16 +260,20 @@
             </div>
 
             <!-- 施術ランキング -->
-            <div class="bg-white rounded-lg shadow-sm mb-6">
-                <div class="clickable-section p-6 border-b" onclick="toggleSection('treatmentSection')">
-                    <div class="flex items-center justify-between">
-                        <h2 class="text-xl font-semibold">施術ランキング</h2>
-                        <svg id="treatmentSectionIcon" class="w-6 h-6 text-gray-400 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                        </svg>
+            <div class="bg-white rounded-lg shadow-sm mb-6 p-6">
+                <div class="rounded-xl bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 border border-blue-100/60 shadow-sm p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h2 class="text-md font-semibold text-slate-800">月の施術ランキング</h2>
+                        <p class="text-xs text-slate-600">月間の施術別売上・件数ランキングを表示します。</p>
                     </div>
+                    <button id="treatmentSectionToggle" type="button" class="group inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white/60 px-3 py-2 text-sm font-medium text-blue-700 transition hover:bg-white hover:shadow" onclick="toggleSection('treatmentSection')">
+                        <span id="treatmentSectionToggleLabel">一覧を開く</span>
+                        <svg id="treatmentSectionIcon" class="h-4 w-4 text-blue-500 transition-transform group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
-                <div id="treatmentSection" class="p-6 hidden">
+                <div id="treatmentSection" class="mt-4 hidden">
                     <div class="flex gap-2 mb-4">
                         <button onclick="showRanking('amount')" id="amountBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">売上順</button>
                         <button onclick="showRanking('count')" id="countBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm">件数順</button>
@@ -5290,13 +5294,16 @@
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const icon = document.getElementById(sectionId + 'Icon');
-            
+            const label = document.getElementById(sectionId + 'ToggleLabel');
+
             if (section.classList.contains('hidden')) {
                 section.classList.remove('hidden');
                 icon.classList.add('rotate-180');
+                if (label) label.textContent = '一覧を閉じる';
             } else {
                 section.classList.add('hidden');
                 icon.classList.remove('rotate-180');
+                if (label) label.textContent = '一覧を開く';
             }
         }
         
