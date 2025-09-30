@@ -3589,6 +3589,109 @@
             }
         }
 
+        // 保険日別データ処理
+        function processInsuranceDailyData(rows, formattedMonth) {
+            console.log('Processing daily insurance data for:', formattedMonth);
+
+            const { y, m } = parseFormattedYearMonth(formattedMonth);
+
+            // 既存データを取得または新規作成
+            let monthData = insuranceData[formattedMonth] || {
+                medicalRevenue: 0,
+                firstVisitCount: 0,
+                returnVisitCount: 0,
+                newPatientCount: 0,
+                totalPatientCount: 0,
+                dailyRecords: {}
+            };
+
+            if (!monthData.dailyRecords) monthData.dailyRecords = {};
+
+            function parseIntSafe(str) {
+                const n = parseInt((str || '').toString().replace(/[^\d-]/g, ''));
+                return isNaN(n) ? 0 : n;
+            }
+
+            // ヘッダー行から列インデックスを特定（2行目がヘッダー）
+            const header = rows[1] || [];
+            const dayCol = 0; // 日
+            const totalPatientCol = header.findIndex(c => c.includes('受診') || c.includes('件数')) || 1;
+            const firstVisitCol = header.findIndex(c => c.includes('初診')) || 2;
+            const returnVisitCol = header.findIndex(c => c.includes('再診')) || 3;
+            const pointsCol = header.findIndex(c => c.includes('保険点数')) || 5;
+
+            let totalRevenue = 0;
+            let totalFirstVisit = 0;
+            let totalReturnVisit = 0;
+
+            // 3行目以降がデータ行
+            for (let i = 2; i < rows.length; i++) {
+                const r = rows[i];
+                if (!r || r.length < 2) continue;
+
+                const day = parseIntSafe(r[dayCol]);
+                if (day < 1 || day > 31) continue; // 日付が不正な場合はスキップ
+
+                // "計" 行の場合は合計として扱う
+                if (r[dayCol] && r[dayCol].includes('計')) {
+                    totalRevenue = parseIntSafe(r[pointsCol]) * 10;
+                    totalFirstVisit = parseIntSafe(r[firstVisitCol]);
+                    totalReturnVisit = parseIntSafe(r[returnVisitCol]);
+                    continue;
+                }
+
+                const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                const totalPatients = parseIntSafe(r[totalPatientCol]);
+                const firstVisit = parseIntSafe(r[firstVisitCol]);
+                const returnVisit = parseIntSafe(r[returnVisitCol]);
+                const points = parseIntSafe(r[pointsCol]);
+                const revenue = points * 10; // 保険点数の10倍が売上
+
+                monthData.dailyRecords[dateStr] = {
+                    day: day,
+                    totalPatients: totalPatients,
+                    firstVisit: firstVisit,
+                    returnVisit: returnVisit,
+                    points: points,
+                    revenue: revenue
+                };
+            }
+
+            // 月次合計を設定
+            if (totalRevenue > 0) {
+                monthData.medicalRevenue = totalRevenue;
+            } else {
+                // 日別データから合計を計算
+                monthData.medicalRevenue = Object.values(monthData.dailyRecords).reduce((sum, d) => sum + (d.revenue || 0), 0);
+            }
+
+            if (totalFirstVisit > 0) {
+                monthData.firstVisitCount = totalFirstVisit;
+            } else {
+                monthData.firstVisitCount = Object.values(monthData.dailyRecords).reduce((sum, d) => sum + (d.firstVisit || 0), 0);
+            }
+
+            if (totalReturnVisit > 0) {
+                monthData.returnVisitCount = totalReturnVisit;
+            } else {
+                monthData.returnVisitCount = Object.values(monthData.dailyRecords).reduce((sum, d) => sum + (d.returnVisit || 0), 0);
+            }
+
+            monthData.totalPatientCount = monthData.firstVisitCount + monthData.returnVisitCount;
+
+            insuranceData[formattedMonth] = monthData;
+            localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
+            updateShareButtonState();
+
+            currentMonth = formattedMonth;
+            updateMonthSelector();
+            document.getElementById('monthSelector').value = currentMonth;
+            switchTab('overall');
+
+            alert(`${formattedMonth}の日別保険データを読み込みました（${Object.keys(monthData.dailyRecords).length}日分）`);
+        }
+
         // 保険データ処理（名称多様化＆堅牢化）
         function processInsuranceData(data, formattedMonth) {
             console.log('Processing insurance data for:', formattedMonth);
@@ -3607,13 +3710,22 @@
                 // 正規化（トリム）
                 rows = rows.map(r => r.map(c => (c || '').toString().trim()));
 
+                // 日別データ形式かチェック（1列目が日付の連番）
+                const isDailyFormat = rows.length > 2 && rows[2] && rows[2][0] && /^\d{1,2}$/.test(rows[2][0]);
+
+                if (isDailyFormat) {
+                    console.log('Detected daily insurance data format');
+                    return processInsuranceDailyData(rows, formattedMonth);
+                }
+
                 // 既存データを取得または新規作成（曜日データは保持）
                 let monthData = insuranceData[formattedMonth] || {
                     medicalRevenue: 0,
                     firstVisitCount: 0,
                     returnVisitCount: 0,
                     newPatientCount: 0,
-                    totalPatientCount: 0
+                    totalPatientCount: 0,
+                    dailyRecords: {}
                 };
 
                 // ヘッダー検出（メタ行スキップ）
@@ -3870,33 +3982,43 @@
 
                 // 自費データから集計 - dailyRecordsを使用
                 if (selfPayData && selfPayData.dailyRecords) {
-                    const dayRecord = selfPayData.dailyRecords[day];
+                    // dailyRecordsのキーはdateStrなので、日付文字列で検索
+                    const dayRecord = selfPayData.dailyRecords[dateStr];
                     if (dayRecord) {
                         selfPayFirst = dayRecord.initialCount || 0;
                         selfPayReturn = dayRecord.returnCount || 0;
-                        selfPayRev = dayRecord.grandTotal || 0;
+                        selfPayRev = dayRecord.grandAmount || 0;
                     }
                 }
 
                 // 保険データから集計
-                if (insData && insData.weekdaySummary) {
-                    let dayFound = false;
+                if (insData) {
+                    // 日別レコードがある場合はそちらを優先
+                    if (insData.dailyRecords && insData.dailyRecords[dateStr]) {
+                        const dayRecord = insData.dailyRecords[dateStr];
+                        insFirst = dayRecord.firstVisit || 0;
+                        insReturn = dayRecord.returnVisit || 0;
+                        insRev = dayRecord.revenue || 0;
+                    } else if (insData.weekdaySummary) {
+                        // 日別レコードがない場合は曜日別データから計算
+                        let dayFound = false;
 
-                    // その日の曜日データを探す
-                    for (const [weekday, info] of Object.entries(insData.weekdaySummary)) {
-                        if (info.dayNumbers && info.dayNumbers.includes(day)) {
-                            dayFound = true;
-                            // その曜日の1日あたりの平均値を計算
-                            const dayCount = info.dayCount || 1;
-                            insFirst = Math.round(info.firstVisitCount / dayCount);
-                            insReturn = Math.round(info.returnVisitCount / dayCount);
-                            break; // 見つかったらループを抜ける
+                        // その日の曜日データを探す
+                        for (const [weekday, info] of Object.entries(insData.weekdaySummary)) {
+                            if (info.dayNumbers && info.dayNumbers.includes(day)) {
+                                dayFound = true;
+                                // その曜日の1日あたりの平均値を計算
+                                const dayCount = info.dayCount || 1;
+                                insFirst = Math.round(info.firstVisitCount / dayCount);
+                                insReturn = Math.round(info.returnVisitCount / dayCount);
+                                break; // 見つかったらループを抜ける
+                            }
                         }
-                    }
 
-                    // 売上は営業日で均等按分（その日が営業日の場合のみ）
-                    if (dayFound && insData.medicalRevenue && totalInsuranceBusinessDays > 0) {
-                        insRev = Math.round(insData.medicalRevenue / totalInsuranceBusinessDays);
+                        // 売上は営業日で均等按分（その日が営業日の場合のみ）
+                        if (dayFound && insData.medicalRevenue && totalInsuranceBusinessDays > 0) {
+                            insRev = Math.round(insData.medicalRevenue / totalInsuranceBusinessDays);
+                        }
                     }
                 }
 
