@@ -3860,7 +3860,9 @@
                         if (info.dayNumbers && info.dayNumbers.includes(day)) {
                             selfPayFirst += info.initialCount || 0;
                             selfPayReturn += info.returnCount || 0;
-                            selfPayRev += info.amount || 0;
+                            // 日別売上を平均で按分
+                            const dayCount = info.dayCount || 1;
+                            selfPayRev += (info.grandAmount || 0) / dayCount;
                         }
                     });
                 }
@@ -3946,7 +3948,7 @@
             const visitCanvas = document.getElementById('overallVisitChart');
             if (visitCanvas) {
                 const ctx = visitCanvas.getContext('2d');
-                if (window.overallVisitChart) {
+                if (window.overallVisitChart && typeof window.overallVisitChart.destroy === 'function') {
                     window.overallVisitChart.destroy();
                 }
                 window.overallVisitChart = new Chart(ctx, {
@@ -4008,7 +4010,7 @@
             const revenueCanvas = document.getElementById('overallRevenueChart');
             if (revenueCanvas) {
                 const ctx = revenueCanvas.getContext('2d');
-                if (window.overallRevenueChart) {
+                if (window.overallRevenueChart && typeof window.overallRevenueChart.destroy === 'function') {
                     window.overallRevenueChart.destroy();
                 }
                 window.overallRevenueChart = new Chart(ctx, {
@@ -4065,7 +4067,7 @@
             const ratioCanvas = document.getElementById('overallRevenueRatioChart');
             if (ratioCanvas && (selfPayRevenue > 0 || insuranceRevenue > 0)) {
                 const ctx = ratioCanvas.getContext('2d');
-                if (window.overallRevenueRatioChart) {
+                if (window.overallRevenueRatioChart && typeof window.overallRevenueRatioChart.destroy === 'function') {
                     window.overallRevenueRatioChart.destroy();
                 }
                 window.overallRevenueRatioChart = new Chart(ctx, {
@@ -4121,7 +4123,7 @@
             const visitRatioCanvas = document.getElementById('overallVisitRatioChart');
             if (visitRatioCanvas && (totalFirst > 0 || totalReturn > 0)) {
                 const ctx = visitRatioCanvas.getContext('2d');
-                if (window.overallVisitRatioChart) {
+                if (window.overallVisitRatioChart && typeof window.overallVisitRatioChart.destroy === 'function') {
                     window.overallVisitRatioChart.destroy();
                 }
                 window.overallVisitRatioChart = new Chart(ctx, {
