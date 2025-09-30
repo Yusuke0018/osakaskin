@@ -4062,47 +4062,46 @@
             }
         }
 
-        function buildInsuranceDailyLookup(insData) {
-            const insuranceDailyByDate = new Map();
-            const insuranceDailyByDay = new Map();
+        function findInsuranceDailyRecord(insData, dateStr, dayNumber) {
+            if (!insData || !insData.dailyRecords) return null;
 
-            if (!insData || !insData.dailyRecords) {
-                return { hasRecords: false, byDate: insuranceDailyByDate, byDay: insuranceDailyByDay };
-            }
+            try {
+                const candidates = new Set();
+                const trimmed = dateStr.trim();
+                const normalized = normalizeHalfWidth(trimmed);
+                const parts = normalized.split('-');
+                if (parts.length === 3) {
+                    const [y, m, d] = parts;
+                    candidates.add(`${y}-${m}-${d}`);
+                    candidates.add(`${y}-${Number(m)}-${Number(d)}`);
+                    candidates.add(`${y}/${m}/${d}`);
+                    candidates.add(`${y}/${Number(m)}/${Number(d)}`);
+                    candidates.add(`${y}${m}${d}`);
+                    candidates.add(`${y}${String(Number(m)).padStart(2, '0')}${String(Number(d)).padStart(2, '0')}`);
+                    candidates.add(`${y}年${Number(m)}月${Number(d)}日`);
+                    candidates.add(`${y}年${String(Number(m)).padStart(2, '0')}月${String(Number(d)).padStart(2, '0')}日`);
+                }
 
-            Object.entries(insData.dailyRecords).forEach(([key, record]) => {
-                if (!record) return;
-
-                if (typeof key === 'string') {
-                    const normalizedKey = key.trim();
-                    if (normalizedKey) {
-                        const baseKey = normalizedKey.split(/[\sT]/)[0] || normalizedKey;
-                        const keyVariants = new Set([normalizedKey, baseKey]);
-
-                        keyVariants.forEach(candidate => {
-                            if (!candidate) return;
-                            insuranceDailyByDate.set(candidate, record);
-                            if (candidate.includes('-')) {
-                                insuranceDailyByDate.set(candidate.replace(/-/g, '/'), record);
-                            } else if (candidate.includes('/')) {
-                                insuranceDailyByDate.set(candidate.replace(/\//g, '-'), record);
-                            }
-                        });
+                for (const key of candidates) {
+                    if (key && insData.dailyRecords[key]) {
+                        return insData.dailyRecords[key];
                     }
                 }
 
-                const dayValue = record.day ?? record.dayNumber;
-                const dayNum = Number(dayValue);
-                if (Number.isFinite(dayNum)) {
-                    insuranceDailyByDay.set(dayNum, record);
+                if (Number.isFinite(dayNumber)) {
+                    const day = Number(dayNumber);
+                    for (const record of Object.values(insData.dailyRecords)) {
+                        const candidateDay = Number(record.day ?? record.dayNumber);
+                        if (Number.isFinite(candidateDay) && candidateDay === day) {
+                            return record;
+                        }
+                    }
                 }
-            });
+            } catch (error) {
+                console.warn('findInsuranceDailyRecord error:', error);
+            }
 
-            return {
-                hasRecords: insuranceDailyByDate.size > 0,
-                byDate: insuranceDailyByDate,
-                byDay: insuranceDailyByDay
-            };
+            return null;
         }
 
         // 全体データ表示
@@ -4115,7 +4114,6 @@
             // 自費と保険のデータを取得
             const selfPayData = salesData[currentMonth];
             const insData = insuranceData[currentMonth];
-            const insuranceLookup = buildInsuranceDailyLookup(insData);
 
             // 月間サマリーを計算
             let totalRevenue = 0;
@@ -4197,7 +4195,7 @@
             }
 
             // 日別データの生成
-            generateDailyOverallData(insuranceLookup);
+            generateDailyOverallData();
 
             // グラフの描画
             renderOverallCharts();
@@ -4208,7 +4206,7 @@
         }
 
         // 日別の全体データを生成
-        function generateDailyOverallData(insuranceLookup) {
+        function generateDailyOverallData() {
             if (!currentMonth) return;
 
             const { y, m } = parseFormattedYearMonth(currentMonth);
@@ -4219,10 +4217,7 @@
             // 自費と保険の月間データを取得
             const selfPayData = salesData[currentMonth];
             const insData = insuranceData[currentMonth];
-            const lookup = insuranceLookup || buildInsuranceDailyLookup(insData);
-            const hasInsuranceDailyRecords = lookup.hasRecords;
-            const insuranceDailyByDate = lookup.byDate;
-            const insuranceDailyByDay = lookup.byDay;
+            const hasInsuranceDailyRecords = insData && insData.dailyRecords && Object.keys(insData.dailyRecords).length > 0;
 
             // 全営業日のセットを作成（保険データから）
             const allInsuranceBusinessDays = new Set();
@@ -4259,22 +4254,17 @@
 
                 // 保険データから集計
                 if (insData) {
+                    let dayRecord = null;
                     if (hasInsuranceDailyRecords) {
-                        let dayRecord = insuranceDailyByDate ? insuranceDailyByDate.get(dateStr) : null;
-                        if (!dayRecord && insuranceDailyByDate) {
-                            const compactKey = `${y}-${Number(m)}-${Number(day)}`;
-                            dayRecord = insuranceDailyByDate.get(compactKey);
-                        }
-                        if (!dayRecord && insuranceDailyByDay) {
-                            dayRecord = insuranceDailyByDay.get(day);
-                        }
-
+                        dayRecord = findInsuranceDailyRecord(insData, dateStr, day);
                         if (dayRecord) {
                             insFirst = dayRecord.firstVisit || 0;
                             insReturn = dayRecord.returnVisit || 0;
                             insRev = dayRecord.revenue || 0;
                         }
-                    } else if (insData.weekdaySummary) {
+                    }
+
+                    if (!dayRecord && insData.weekdaySummary) {
                         // 日別レコードがない場合は曜日別データから計算
                         let dayFound = false;
 
