@@ -81,6 +81,36 @@
 
         <!-- 自費ページ -->
         <div id="selfPayContent" class="hidden">
+            <!-- 月次推移グラフ -->
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                    <h2 class="text-xl font-semibold">売上・件数推移</h2>
+                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <select id="chartPeriod" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="12">過去1年間</option>
+                            <option value="6">過去6ヶ月</option>
+                            <option value="3">過去3ヶ月</option>
+                            <option value="24">過去2年間</option>
+                            <option value="all">全期間</option>
+                            <option value="custom">期間を指定</option>
+                        </select>
+                        <div id="customPeriod" class="hidden flex flex-wrap gap-2 mt-2">
+                            <select id="startMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
+                                <option value="">開始月</option>
+                            </select>
+                            <span class="self-center font-medium text-lg">〜</span>
+                            <select id="endMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
+                                <option value="">終了月</option>
+                            </select>
+                            <button onclick="applyCustomPeriod()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">適用</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="position: relative; height:400px;">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+
             <!-- 総売上サマリー -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-4">総売上サマリー</h2>
@@ -139,6 +169,12 @@
                         <div class="text-center">
                             <p id="businessDaysSelf" class="text-2xl font-bold text-gray-800">-</p>
                             <p id="businessDaysSelfMethod" class="text-xs mt-1 text-gray-500">-</p>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-200">
+                            <div class="text-center">
+                                <span class="text-sm text-gray-600">1日平均売上</span>
+                                <p id="dailyAverageSales" class="font-semibold text-blue-700 mt-1">-</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -220,36 +256,6 @@
                             <canvas id="genderChart"></canvas>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- 月次推移グラフ -->
-            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-                    <h2 class="text-xl font-semibold">売上・件数推移</h2>
-                    <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <select id="chartPeriod" class="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="12">過去1年間</option>
-                            <option value="6">過去6ヶ月</option>
-                            <option value="3">過去3ヶ月</option>
-                            <option value="24">過去2年間</option>
-                            <option value="all">全期間</option>
-                            <option value="custom">期間を指定</option>
-                        </select>
-                        <div id="customPeriod" class="hidden flex flex-wrap gap-2 mt-2">
-                            <select id="startMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
-                                <option value="">開始月</option>
-                            </select>
-                            <span class="self-center font-medium text-lg">〜</span>
-                            <select id="endMonth" class="px-4 py-2 border-2 border-gray-300 rounded-lg font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[150px]">
-                                <option value="">終了月</option>
-                            </select>
-                            <button onclick="applyCustomPeriod()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700">適用</button>
-                        </div>
-                    </div>
-                </div>
-                <div style="position: relative; height:400px;">
-                    <canvas id="salesChart"></canvas>
                 </div>
             </div>
 
@@ -387,9 +393,10 @@
         
         <!-- 保険ページ -->
         <div id="insuranceContent" class="hidden">
-            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <!-- 保険データグラフ -->
+            <div id="insuranceChartArea" class="bg-white rounded-lg shadow-sm p-6 mb-6 hidden">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-semibold">保険診療データ</h2>
+                    <h3 class="text-lg font-semibold">保険売上推移</h3>
                     <div class="flex items-center gap-4">
                         <label class="text-sm text-gray-600">表示期間:</label>
                         <select id="insurancePeriodSelector" onchange="updateInsurancePeriod()" class="px-3 py-1 border border-gray-300 rounded-md text-sm">
@@ -407,6 +414,40 @@
                         </div>
                     </div>
                 </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 医療収益推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">医療収益推移</h4>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="insuranceRevenueChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 受診者数推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">受診者数推移</h4>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="insurancePatientChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 診察件数推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">診察件数推移</h4>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="insuranceVisitChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 新患数推移 -->
+                    <div>
+                        <h4 class="text-md font-medium mb-3">新患数推移</h4>
+                        <div style="height: 300px; position: relative;">
+                            <canvas id="insuranceNewPatientChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">保険診療データ</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <!-- 医療収益 -->
                     <div class="p-4 bg-gray-50 rounded-lg">
@@ -488,41 +529,6 @@
                 </div>
             </div>
 
-            <!-- 保険データグラフ -->
-            <div id="insuranceChartArea" class="bg-white rounded-lg shadow-sm p-6 mt-6 hidden">
-                <h3 class="text-lg font-semibold mb-4">推移グラフ</h3>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- 医療収益推移 -->
-                    <div>
-                        <h4 class="text-md font-medium mb-3">医療収益推移</h4>
-                        <div style="height: 300px; position: relative;">
-                            <canvas id="insuranceRevenueChart"></canvas>
-                        </div>
-                    </div>
-                    <!-- 受診者数推移 -->
-                    <div>
-                        <h4 class="text-md font-medium mb-3">受診者数推移</h4>
-                        <div style="height: 300px; position: relative;">
-                            <canvas id="insurancePatientChart"></canvas>
-                        </div>
-                    </div>
-                    <!-- 診察件数推移 -->
-                    <div>
-                        <h4 class="text-md font-medium mb-3">診察件数推移</h4>
-                        <div style="height: 300px; position: relative;">
-                            <canvas id="insuranceVisitChart"></canvas>
-                        </div>
-                    </div>
-                    <!-- 新患数推移 -->
-                    <div>
-                        <h4 class="text-md font-medium mb-3">新患数推移</h4>
-                        <div style="height: 300px; position: relative;">
-                            <canvas id="insuranceNewPatientChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
             <!-- 傷病名ランキング -->
             <div id="insuranceDiseaseRanking" class="bg-white rounded-lg shadow-sm p-6 mt-6">
                 <div class="cursor-pointer flex items-center justify-between" onclick="toggleInsuranceDiseaseRanking()">
@@ -2116,12 +2122,14 @@
                 '<span class="text-gray-400">-</span>';
 
             // 営業日数（自費）
+            let businessDays = 0;
             try {
                 const wd = workdayData[currentMonth];
                 const methodEl = document.getElementById('businessDaysSelfMethod');
                 const valueEl = document.getElementById('businessDaysSelf');
                 if (wd && wd.saleDaysCount > 0) {
-                    valueEl.textContent = wd.saleDaysCount + '日';
+                    businessDays = wd.saleDaysCount;
+                    valueEl.textContent = businessDays + '日';
                     if (methodEl) {
                         if (wd.method) {
                             methodEl.textContent = wd.method;
@@ -2134,12 +2142,25 @@
                 } else {
                     // フォールバック：平日日数（Mon-Fri）
                     const { y, m } = parseFormattedYearMonth(currentMonth);
-                    const weekdays = countWeekdaysInMonth(y, m, false);
-                    valueEl.textContent = weekdays + '日';
+                    businessDays = countWeekdaysInMonth(y, m, false);
+                    valueEl.textContent = businessDays + '日';
                     if (methodEl) methodEl.textContent = '平日日数 (Mon-Fri)';
                 }
             } catch (e) {
                 console.warn('営業日数表示（自費）エラー:', e);
+            }
+
+            // 1日平均売上
+            try {
+                const dailyAvgEl = document.getElementById('dailyAverageSales');
+                if (dailyAvgEl && businessDays > 0) {
+                    const dailyAverage = Math.round(data.totals.grand.amount / businessDays);
+                    dailyAvgEl.textContent = formatAmount(dailyAverage);
+                } else if (dailyAvgEl) {
+                    dailyAvgEl.textContent = '-';
+                }
+            } catch (e) {
+                console.warn('1日平均売上表示エラー:', e);
             }
         }
 
