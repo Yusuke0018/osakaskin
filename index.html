@@ -3535,6 +3535,17 @@
                 // 正規化（トリム）
                 rows = rows.map(r => r.map(c => (c || '').toString().trim()));
 
+                // 日別フォーマットが紛れている場合は日別処理へ委譲
+                try {
+                    const sampleRow = rows[2] && rows[2][0] ? normalizeHalfWidth(rows[2][0].toString()) : '';
+                    if (/^\d{1,2}$/.test(sampleRow)) {
+                        console.log('Weekday data appears to be daily insurance data; delegating to daily processor');
+                        return processInsuranceDailyData(rows, formattedMonth);
+                    }
+                } catch (delegationError) {
+                    console.warn('Weekday data delegation check failed:', delegationError);
+                }
+
                 // 曜日別集計データ構造を初期化
                 const weekdaySummary = {};
                 WEEKDAY_DISPLAY_ORDER.forEach(key => {
