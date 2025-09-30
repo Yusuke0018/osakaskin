@@ -3914,6 +3914,29 @@
             return `${year}年${month.toString().padStart(2, '0')}月`;
         }
 
+        // 前月比を表示する関数
+        function displayComparison(elementId, currentValue, previousValue, unit = '円') {
+            const element = document.getElementById(elementId);
+            if (!element) return;
+
+            if (previousValue === 0) {
+                element.textContent = '';
+                return;
+            }
+
+            const diff = currentValue - previousValue;
+            const percentage = ((diff / previousValue) * 100).toFixed(1);
+            const sign = diff >= 0 ? '+' : '';
+            const color = diff >= 0 ? 'text-green-600' : 'text-red-600';
+            const arrow = diff >= 0 ? '↑' : '↓';
+
+            if (unit === '円') {
+                element.innerHTML = `<span class="${color}">${arrow} ${sign}¥${Math.abs(diff).toLocaleString()} (${sign}${percentage}%)</span>`;
+            } else {
+                element.innerHTML = `<span class="${color}">${arrow} ${sign}${Math.abs(diff).toLocaleString()}${unit} (${sign}${percentage}%)</span>`;
+            }
+        }
+
         // 全体データ表示
         function displayOverallData() {
             if (!currentMonth) return;
