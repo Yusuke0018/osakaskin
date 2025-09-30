@@ -3752,14 +3752,30 @@
                 // 正規化（トリム）
                 rows = rows.map(r => r.map(c => (c || '').toString().trim()));
 
+                // デバッグ: 最初の3行を確認
+                console.log('Insurance CSV rows:', rows.length);
+                console.log('Row[0]:', rows[0]);
+                console.log('Row[1]:', rows[1]);
+                console.log('Row[2]:', rows[2]);
+                if (rows[2] && rows[2][0]) {
+                    console.log('Row[2][0] value:', rows[2][0]);
+                    console.log('Test /^\\d{1,2}$/.test:', /^\d{1,2}$/.test(rows[2][0]));
+                    console.log('Test /^\\d{1,2}日$/.test:', /^\d{1,2}日$/.test(rows[2][0]));
+                    console.log('Test /^\\d{4}[\\/\\-]\\d{1,2}[\\/\\-]\\d{1,2}$/.test:', /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(rows[2][0]));
+                }
+
                 // 日別データ形式かチェック（1列目が日付の連番）
                 // 「1」「2」のような純粋な数字、「1日」「2日」のような日付、「2024/09/01」のような日付形式に対応
                 const isDailyFormat = rows.length > 2 && rows[2] && rows[2][0] &&
                     (/^\d{1,2}$/.test(rows[2][0]) || /^\d{1,2}日$/.test(rows[2][0]) || /^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(rows[2][0]));
 
+                console.log('isDailyFormat:', isDailyFormat);
+
                 if (isDailyFormat) {
                     console.log('Detected daily insurance data format');
                     return processInsuranceDailyData(rows, formattedMonth);
+                } else {
+                    console.log('Not detected as daily format, using aggregated format');
                 }
 
                 // 既存データを取得または新規作成（曜日データは保持）
