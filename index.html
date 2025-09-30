@@ -1015,6 +1015,40 @@
             return false;
         }
 
+        function looksLikeInsuranceDailyData(data) {
+            if (!data) return false;
+
+            try {
+                let rows;
+                if (typeof data === 'string') {
+                    const parsed = (typeof Papa !== 'undefined')
+                        ? Papa.parse(data, { skipEmptyLines: true, preview: 20 })
+                        : { data: data.split('\n').map(l => l.split(',')) };
+                    rows = parsed.data;
+                } else if (Array.isArray(data)) {
+                    rows = data.slice(0, 20);
+                } else {
+                    return false;
+                }
+
+                let numericRowCount = 0;
+                for (const row of rows) {
+                    if (!Array.isArray(row) || row.length === 0) continue;
+                    const firstCell = normalizeHalfWidth((row[0] || '').toString().trim());
+                    if (/^\d{1,2}$/.test(firstCell)) {
+                        numericRowCount++;
+                        if (numericRowCount >= 3) {
+                            return true;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('looksLikeInsuranceDailyData parse error:', error);
+            }
+
+            return false;
+        }
+
         function isYearWithinSupportedRange(yearNumber) {
             return Number.isFinite(yearNumber) && yearNumber >= MIN_SUPPORTED_YEAR && yearNumber <= MAX_SUPPORTED_YEAR;
         }
@@ -1716,6 +1750,14 @@
             if (!isDiseaseData && !isInsurance && !isWeekdayData) {
                 if (looksLikeInsuranceData(data)) {
                     console.log('Detected insurance data from content');
+                    isInsurance = true;
+                }
+            }
+
+            if (isWeekdayData && looksLikeInsuranceDailyData(data)) {
+                console.log('Detected daily insurance data format; reclassifying as insurance data');
+                isWeekdayData = false;
+                if (!isDiseaseData) {
                     isInsurance = true;
                 }
             }
