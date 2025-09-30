@@ -116,11 +116,24 @@
                 </div>
             </div>
 
-            <!-- 月毎売上推移グラフ -->
+            <!-- 月毎推移グラフ -->
             <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4">月毎売上推移</h2>
-                <div style="height: 400px; position: relative;">
-                    <canvas id="overallMonthlyRevenueChart"></canvas>
+                <h2 class="text-xl font-semibold mb-4">月毎推移</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- 月毎売上推移 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">売上推移</h3>
+                        <div style="height: 350px; position: relative;">
+                            <canvas id="overallMonthlyRevenueChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- 月毎初診・再診数推移 -->
+                    <div>
+                        <h3 class="text-md font-medium mb-3">初診・再診数推移</h3>
+                        <div style="height: 350px; position: relative;">
+                            <canvas id="overallMonthlyVisitChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -4043,6 +4056,7 @@
 
             // 月次グラフの描画
             renderMonthlyRevenueChart();
+            renderMonthlyVisitChart();
         }
 
         // 日別の全体データを生成
@@ -4489,6 +4503,134 @@
                             ticks: {
                                 callback: function(value) {
                                     return '¥' + (value / 1000000).toFixed(1) + 'M';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 月次初診・再診数推移グラフを描画
+        function renderMonthlyVisitChart() {
+            // 全月のデータを取得して時系列順にソート
+            const months = [];
+
+            // salesDataとinsuranceDataから全月を収集
+            Object.keys(salesData).forEach(month => {
+                if (!months.includes(month)) months.push(month);
+            });
+            Object.keys(insuranceData).forEach(month => {
+                if (!months.includes(month)) months.push(month);
+            });
+
+            // 月をソート (YYYY年MM月形式)
+            months.sort((a, b) => {
+                const matchA = a.match(/(\d{4})年(\d{2})月/);
+                const matchB = b.match(/(\d{4})年(\d{2})月/);
+                if (!matchA || !matchB) return 0;
+                const yearA = parseInt(matchA[1]);
+                const monthA = parseInt(matchA[2]);
+                const yearB = parseInt(matchB[1]);
+                const monthB = parseInt(matchB[2]);
+                if (yearA !== yearB) return yearA - yearB;
+                return monthA - monthB;
+            });
+
+            // 各月の初診・再診数を計算
+            const selfPayFirstVisits = [];
+            const selfPayReturnVisits = [];
+            const insuranceFirstVisits = [];
+            const insuranceReturnVisits = [];
+
+            months.forEach(month => {
+                let selfPayFirst = 0;
+                let selfPayReturn = 0;
+                let insFirst = 0;
+                let insReturn = 0;
+
+                // 自費の初診・再診数
+                if (salesData[month] && salesData[month].weekdaySummarySelf) {
+                    Object.values(salesData[month].weekdaySummarySelf).forEach(day => {
+                        selfPayFirst += day.initialCount || 0;
+                        selfPayReturn += day.returnCount || 0;
+                    });
+                }
+
+                // 保険の初診・再診数
+                if (insuranceData[month]) {
+                    insFirst = insuranceData[month].newPatientCount || 0;
+                    insReturn = (insuranceData[month].firstVisitCount || 0) + (insuranceData[month].returnVisitCount || 0);
+                }
+
+                selfPayFirstVisits.push(selfPayFirst);
+                selfPayReturnVisits.push(selfPayReturn);
+                insuranceFirstVisits.push(insFirst);
+                insuranceReturnVisits.push(insReturn);
+            });
+
+            // グラフ描画
+            const canvas = document.getElementById('overallMonthlyVisitChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            if (window.overallMonthlyVisitChart && typeof window.overallMonthlyVisitChart.destroy === 'function') {
+                window.overallMonthlyVisitChart.destroy();
+            }
+
+            window.overallMonthlyVisitChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: '自費初診',
+                        data: selfPayFirstVisits,
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        stack: 'first'
+                    }, {
+                        label: '保険初診',
+                        data: insuranceFirstVisits,
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        stack: 'first'
+                    }, {
+                        label: '自費再診',
+                        data: selfPayReturnVisits,
+                        backgroundColor: 'rgba(251, 146, 60, 0.7)',
+                        stack: 'return'
+                    }, {
+                        label: '保険再診',
+                        data: insuranceReturnVisits,
+                        backgroundColor: 'rgba(236, 72, 153, 0.7)',
+                        stack: 'return'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString() + '件';
+                                },
+                                footer: function(tooltipItems) {
+                                    const index = tooltipItems[0].dataIndex;
+                                    const totalFirst = selfPayFirstVisits[index] + insuranceFirstVisits[index];
+                                    const totalReturn = selfPayReturnVisits[index] + insuranceReturnVisits[index];
+                                    return '初診合計: ' + totalFirst.toLocaleString() + '件\n再診合計: ' + totalReturn.toLocaleString() + '件';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + '件';
                                 }
                             }
                         }
