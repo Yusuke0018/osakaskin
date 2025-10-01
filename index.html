@@ -3688,6 +3688,88 @@
         }
 
         // 保険日別データ処理
+        function buildInsuranceWeekdaySummaryFromDailyRecords(monthData, formattedMonth) {
+            if (!monthData || !monthData.dailyRecords || Object.keys(monthData.dailyRecords).length === 0) {
+                return null;
+            }
+
+            const { y, m } = parseFormattedYearMonth(formattedMonth);
+            const weekdaySummary = {};
+            WEEKDAY_DISPLAY_ORDER.forEach(key => {
+                const labelInfo = WEEKDAY_LABELS[key] || { short: key, full: key };
+                weekdaySummary[key] = {
+                    label: labelInfo.short,
+                    fullLabel: labelInfo.full,
+                    dayCount: 0,
+                    totalVisits: 0,
+                    firstVisitCount: 0,
+                    returnVisitCount: 0,
+                    insurancePoints: 0,
+                    dayNumbers: []
+                };
+            });
+
+            let hasData = false;
+
+            for (const [dateKey, record] of Object.entries(monthData.dailyRecords)) {
+                if (!record) continue;
+
+                let dayNumber = Number(record.day);
+                if (!Number.isFinite(dayNumber) || dayNumber < 1 || dayNumber > 31) {
+                    const normalizedKey = normalizeHalfWidth((dateKey || '').toString());
+                    const dayMatch = normalizedKey.match(/(?:-|\/)(\d{1,2})(?:日)?$/);
+                    if (dayMatch) {
+                        dayNumber = parseInt(dayMatch[1], 10);
+                    }
+                }
+
+                if (!Number.isFinite(dayNumber) || dayNumber < 1 || dayNumber > 31) continue;
+
+                const totalPatients = Number(record.totalPatients) || 0;
+                const firstVisit = Number(record.firstVisit) || 0;
+                const returnVisit = Number(record.returnVisit) || 0;
+                const points = Number(record.points) || 0;
+                const revenue = Number(record.revenue) || 0;
+
+                if (totalPatients <= 0 && firstVisit <= 0 && returnVisit <= 0 && points <= 0 && revenue <= 0) continue;
+
+                const date = new Date(y, m - 1, dayNumber);
+                if (Number.isNaN(date.getTime())) continue;
+
+                const weekdayKey = WEEKDAY_KEY_FROM_JSINDEX[date.getDay()];
+                if (!weekdayKey || !weekdaySummary[weekdayKey]) continue;
+
+                const info = weekdaySummary[weekdayKey];
+                info.dayCount += 1;
+                info.totalVisits += totalPatients;
+                info.firstVisitCount += firstVisit;
+                info.returnVisitCount += returnVisit;
+                info.insurancePoints += points;
+                if (!info.dayNumbers.includes(dayNumber)) {
+                    info.dayNumbers.push(dayNumber);
+                }
+                hasData = true;
+            }
+
+            if (!hasData) {
+                return null;
+            }
+
+            let businessDays = 0;
+            Object.values(weekdaySummary).forEach(info => {
+                if (info.dayCount > 0) {
+                    businessDays += info.dayCount;
+                    info.dayNumbers.sort((a, b) => a - b);
+                }
+            });
+
+            if (businessDays === 0) {
+                return null;
+            }
+
+            return { summary: weekdaySummary, businessDays };
+        }
+
         function processInsuranceDailyData(rows, formattedMonth) {
             const { y, m } = parseFormattedYearMonth(formattedMonth);
 
@@ -3790,6 +3872,12 @@
             }
 
             monthData.totalPatientCount = monthData.firstVisitCount + monthData.returnVisitCount;
+
+            const weekdayAggregate = buildInsuranceWeekdaySummaryFromDailyRecords(monthData, formattedMonth);
+            if (weekdayAggregate) {
+                monthData.weekdaySummary = weekdayAggregate.summary;
+                monthData.businessDays = weekdayAggregate.businessDays;
+            }
 
             insuranceData[formattedMonth] = monthData;
             localStorage.setItem('insuranceData', JSON.stringify(insuranceData));
