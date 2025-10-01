@@ -1,0 +1,12 @@
+timestamp: 2025-10-01T11:51:40+09:00
+branch: main
+latest_commit: HEAD
+diff_stat:
+ index.html | +31 / -89
+notes: 保険データの初診指標を「初診件数」に統一し、新患カードと関連グラフを整理。
+--- end pre-push log ---
+push_result: pending
+remote: origin
+branch: main
+post_push_commit: PENDING
+upstream: origin/main

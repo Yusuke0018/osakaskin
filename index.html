@@ -104,7 +104,7 @@
                         <p id="overallInsuranceRevenueComparison" class="text-sm mt-1 text-center"></p>
                     </div>
                     <div class="p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg">
-                        <p class="text-sm text-gray-600 text-center mb-2">総初診数</p>
+                        <p class="text-sm text-gray-600 text-center mb-2">総初診件数</p>
                         <p id="overallFirstVisit" class="text-2xl font-bold text-orange-700 text-center">-</p>
                         <p id="overallFirstVisitComparison" class="text-sm mt-1 text-center"></p>
                     </div>
@@ -548,14 +548,6 @@
                             <p id="returnVisitCountComparison" class="text-sm mt-1"></p>
                         </div>
                     </div>
-                    <!-- 初診数 -->
-                    <div class="p-4 bg-blue-50 rounded-lg">
-                        <p class="text-sm text-gray-600 text-center mb-2">初診数</p>
-                        <div class="text-center">
-                            <p id="newPatientCount" class="text-2xl font-bold text-blue-800">-</p>
-                            <p id="newPatientCountComparison" class="text-sm mt-1"></p>
-                        </div>
-                    </div>
                     <!-- 受診者数 -->
                     <div class="p-4 bg-blue-50 rounded-lg">
                         <p class="text-sm text-gray-600 text-center mb-2">受診者数</p>
@@ -622,13 +614,6 @@
                         <h4 class="text-md font-medium mb-3">診察件数推移</h4>
                         <div style="height: 300px; position: relative;">
                             <canvas id="insuranceVisitChart"></canvas>
-                        </div>
-                    </div>
-                    <!-- 初診数推移 -->
-                    <div>
-                        <h4 class="text-md font-medium mb-3">初診数推移</h4>
-                        <div style="height: 300px; position: relative;">
-                            <canvas id="insuranceNewPatientChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -3663,7 +3648,6 @@
                         medicalRevenue: 0,
                         firstVisitCount: 0,
                         returnVisitCount: 0,
-                        newPatientCount: 0,
                         totalPatientCount: 0
                     };
                 }
@@ -3778,7 +3762,6 @@
                 medicalRevenue: 0,
                 firstVisitCount: 0,
                 returnVisitCount: 0,
-                newPatientCount: 0,
                 totalPatientCount: 0,
                 dailyRecords: {}
             };
@@ -3940,7 +3923,6 @@
                     medicalRevenue: 0,
                     firstVisitCount: 0,
                     returnVisitCount: 0,
-                    newPatientCount: 0,
                     totalPatientCount: 0,
                     dailyRecords: {}
                 };
@@ -4069,12 +4051,18 @@
                         continue;
                     }
 
-                    // 新患 / 新規
+                    // 新患 / 新規（初診として扱う）
                     if (includesAny(labelCell, NEW_PATIENT_KEYWORDS) || includesAny(line, NEW_PATIENT_KEYWORDS)) {
                         let v = 0;
                         if (/総件数/.test(labelCell)) v = firstNumericAfterLabel(r);
                         if (!v) v = valueFromRow(r);
-                        if (v && v < 100000) monthData.newPatientCount = v;
+                        if (v && v < 100000) {
+                            if (!monthData.firstVisitCount) {
+                                monthData.firstVisitCount = v;
+                            } else {
+                                monthData.firstVisitCount = Math.max(monthData.firstVisitCount, v);
+                            }
+                        }
                         continue;
                     }
 
@@ -4087,7 +4075,11 @@
                     }
                 }
 
-                const hasValidData = monthData.medicalRevenue > 0 || monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0 || monthData.newPatientCount > 0 || monthData.totalPatientCount > 0;
+                if ((!monthData.totalPatientCount || monthData.totalPatientCount === 0) && (monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0)) {
+                    monthData.totalPatientCount = monthData.firstVisitCount + monthData.returnVisitCount;
+                }
+
+                const hasValidData = monthData.medicalRevenue > 0 || monthData.firstVisitCount > 0 || monthData.returnVisitCount > 0 || monthData.totalPatientCount > 0;
                 if (!hasValidData) {
                     console.warn('警告: 保険データの主要項目が抽出できませんでした。ファイル名やラベルのバリエーションをご確認ください。');
                 }
@@ -4227,7 +4219,7 @@
             if (insData) {
                 insuranceRevenue = insData.medicalRevenue || 0;
                 totalRevenue += insuranceRevenue;
-                totalFirstVisit += insData.newPatientCount || 0;
+                totalFirstVisit += insData.firstVisitCount || 0;
                 totalReturnVisit += insData.returnVisitCount || 0;
             }
 
@@ -4264,7 +4256,7 @@
                 if (prevInsData) {
                     prevInsuranceRevenue = prevInsData.medicalRevenue || 0;
                     prevTotalRevenue += prevInsuranceRevenue;
-                    prevTotalFirstVisit += prevInsData.newPatientCount || 0;
+                    prevTotalFirstVisit += prevInsData.firstVisitCount || 0;
                     prevTotalReturnVisit += prevInsData.returnVisitCount || 0;
                 }
 
@@ -4595,8 +4587,8 @@
             }
 
             if (insData) {
-                totalFirst += insData.newPatientCount || 0;
-                totalReturn += (insData.firstVisitCount || 0) + (insData.returnVisitCount || 0);
+                totalFirst += insData.firstVisitCount || 0;
+                totalReturn += insData.returnVisitCount || 0;
             }
 
             const visitRatioCanvas = document.getElementById('overallVisitRatioChart');
@@ -4797,7 +4789,7 @@
 
                 // 保険の初診・再診数
                 if (insuranceData[month]) {
-                    insFirst = insuranceData[month].newPatientCount || 0;
+                    insFirst = insuranceData[month].firstVisitCount || 0;
                     insReturn = insuranceData[month].returnVisitCount || 0;
                 }
 
@@ -4928,7 +4920,6 @@
                 document.getElementById('medicalRevenue').textContent = formatAmount(data.medicalRevenue || 0);
                 document.getElementById('firstVisitCount').textContent = formatCount(data.firstVisitCount);
                 document.getElementById('returnVisitCount').textContent = formatCount(data.returnVisitCount);
-                document.getElementById('newPatientCount').textContent = formatPeople(data.newPatientCount);
                 document.getElementById('totalPatientCount').textContent = formatPeople(data.totalPatientCount);
 
                 try {
@@ -5016,10 +5007,6 @@
                 if (window.insuranceVisitChart && typeof window.insuranceVisitChart.destroy === 'function') {
                     window.insuranceVisitChart.destroy();
                     window.insuranceVisitChart = null;
-                }
-                if (window.insuranceNewPatientChart && typeof window.insuranceNewPatientChart.destroy === 'function') {
-                    window.insuranceNewPatientChart.destroy();
-                    window.insuranceNewPatientChart = null;
                 }
             }
 
@@ -5472,56 +5459,6 @@
                 });
             }
             
-            // 初診数推移グラフ
-            const newPatientData = months.map(month => insuranceData[month].newPatientCount);
-
-            const newPatientCanvas = document.getElementById('insuranceNewPatientChart');
-            if (newPatientCanvas) {
-                const newPatientCtx = newPatientCanvas.getContext('2d');
-                if (window.insuranceNewPatientChart && typeof window.insuranceNewPatientChart.destroy === 'function') {
-                    window.insuranceNewPatientChart.destroy();
-                }
-                window.insuranceNewPatientChart = new Chart(newPatientCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: months,
-                        datasets: [{
-                            label: '初診数',
-                            data: newPatientData,
-                            backgroundColor: 'rgba(236, 72, 153, 0.8)',
-                            borderColor: 'rgb(236, 72, 153)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        return '初診数: ' + context.parsed.y.toLocaleString() + '人';
-                                    }
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function(value) {
-                                        return value.toLocaleString() + '人';
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            }
-            
             console.log('Insurance charts updated successfully');
         }
         
@@ -5535,7 +5472,6 @@
                 document.getElementById('medicalRevenueComparison').textContent = '';
                 document.getElementById('firstVisitCountComparison').textContent = '';
                 document.getElementById('returnVisitCountComparison').textContent = '';
-                document.getElementById('newPatientCountComparison').textContent = '';
                 document.getElementById('totalPatientCountComparison').textContent = '';
                 return;
             }
@@ -5575,12 +5511,6 @@
             const returnVisitEl = document.getElementById('returnVisitCountComparison');
             returnVisitEl.textContent = `前月比 ${returnVisitComp.text}`;
             returnVisitEl.className = `text-sm mt-1 ${returnVisitComp.class}`;
-            
-            // 新患数
-            const newPatientComp = calculateComparison(currentData.newPatientCount, previousData.newPatientCount);
-            const newPatientEl = document.getElementById('newPatientCountComparison');
-            newPatientEl.textContent = `前月比 ${newPatientComp.text}`;
-            newPatientEl.className = `text-sm mt-1 ${newPatientComp.class}`;
             
             // 受診者数
             const totalPatientComp = calculateComparison(currentData.totalPatientCount, previousData.totalPatientCount);
