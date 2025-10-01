@@ -8,8 +8,8 @@ tests: not run (no test suite defined)
 format: not run (no formatter configured)
 notes: rebuild insurance weekday summary when only daily CSV is imported so weekday analytics reappear
 --- end pre-push log ---
-push_result: pending
+push_result: success
 remote: origin
 branch: main
-post_push_commit: PENDING
+post_push_commit: 08149c7
 upstream: origin/main
