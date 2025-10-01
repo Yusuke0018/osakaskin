@@ -5,8 +5,8 @@ diff_stat:
  index.html | +31 / -89
 notes: 保険データの初診指標を「初診件数」に統一し、新患カードと関連グラフを整理。
 --- end pre-push log ---
-push_result: pending
+push_result: success
 remote: origin
 branch: main
-post_push_commit: PENDING
+post_push_commit: 9d27b0c
 upstream: origin/main
